@@ -8,7 +8,7 @@ directory = sys.argv[1]
 
 conn = sqlite3.connect('messages.sqlite')
 cursor = conn.cursor()
-cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp real, UNIQUE(user, timestamp) ON CONFLICT REPLACE)')
+cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 
 with open(os.path.join(directory, 'channels.json')) as f:
     channels = json.load(f)
