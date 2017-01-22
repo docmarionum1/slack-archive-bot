@@ -73,7 +73,13 @@ def handle_query(event):
 
         params = event['text'].lower().split()
         for p in params:
+            # Handle emoji
+            if len(p) > 2 and p[0] == ':' and p[-1] == ':':
+                text.append(p)
+                continue
+
             p = p.split(':')
+
             if len(p) == 1:
                 text.append(p[0])
             if len(p) == 2:
