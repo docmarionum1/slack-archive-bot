@@ -20,7 +20,7 @@ on the directory.  For example:
 1. Create a new [bot user](https://api.slack.com/bot-users) on your slack
 channel and get the API key. Start the bot with:
 
-        export SLACK_API_TOKEN=<API_TOKEN> && python main.py
+        export SLACK_API_TOKEN=<API_TOKEN> && python archivebot.py
 
     Where API_TOKEN is the token you got when creating the bot user.
 
