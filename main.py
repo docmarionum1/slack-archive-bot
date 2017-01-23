@@ -64,6 +64,20 @@ def convert_timestamp(ts):
     ).strftime('%Y-%m-%d %H:%M:%S')
 
 def handle_query(event):
+    """
+    Handles a DM to the bot that is requesting a search of the archives.
+
+    Usage:
+
+        <query> from:<user> in:<channel> sort:asc|desc limit:<number>
+
+        query: The text to search for.
+        user: If you want to limit the search to one user, the username.
+        channel: If you want to limit the search to one channel, the channel name.
+        sort: Either asc if you want to search starting with the oldest messages,
+            or desc if you want to start from the newest. Default asc.
+        limit: The number of responses to return. Default 10.
+    """
     try:
         text = []
         user = None
@@ -138,17 +152,16 @@ def handle_message(event):
     except:
         print("*"*20)
 
+    # If it's a DM, treat it as a search query
     if event['channel'][0] == 'D':
         handle_query(event)
-    else:
-        print(
-            event['text'], event['user'], event['channel'], event['ts']
-        )
+    else: # Otherwise save the message to the archive.
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
             [(event['text'], event['user'], event['channel'], event['ts'])]
         )
         conn.commit()
 
+# Loop
 if sc.rtm_connect():
     while True:
         try:
