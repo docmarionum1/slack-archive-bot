@@ -5,6 +5,7 @@ import time
 import traceback
 
 from slackclient import SlackClient
+from websocket import WebSocketConnectionClosedException
 
 conn = sqlite3.connect('messages.sqlite')
 cursor = conn.cursor()
@@ -168,6 +169,8 @@ if sc.rtm_connect():
             for event in sc.rtm_read():
                 if event['type'] == 'message':
                     handle_message(event)
+        except WebSocketConnectionClosedException:
+            sc.rtm_connect()
         except:
             print(traceback.format_exc())
         time.sleep(1)
