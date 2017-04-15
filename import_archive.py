@@ -24,7 +24,7 @@ for channel in channels:
         args = []
         for message in messages:
             args.append((
-                message['text'],
+                message['text'] if 'text' in message else "",
                 message['user'] if 'user' in message else "", channel['id'], message['ts']
             ))
 
