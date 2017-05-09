@@ -7,13 +7,20 @@ import traceback
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
+# Connects to the previously created SQL database
 conn = sqlite3.connect('messages.sqlite')
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 
+# This token is given when the bot is started in terminal
 slack_token = os.environ["SLACK_API_TOKEN"]
+
+# Makes bot user active on Slack
+# NOTE: terminal must be running for the bot to continue
 sc = SlackClient(slack_token)
 
+# Double naming for better search functionality
+# Keys are both the name and unique ID where needed
 ENV = {
     'user_id': {},
     'id_user': {},
@@ -21,6 +28,8 @@ ENV = {
     'id_channel': {}
 }
 
+# Uses slack API to get most recent user list
+# Necessary for User ID correlation
 def update_users():
     info = sc.api_call('users.list')
     ENV['user_id'] = dict([(m['name'], m['id']) for m in info['members']])
@@ -79,6 +88,7 @@ def handle_query(event):
             or desc if you want to start from the newest. Default asc.
         limit: The number of responses to return. Default 10.
     """
+
     try:
         text = []
         user = None
@@ -89,6 +99,7 @@ def handle_query(event):
         params = event['text'].lower().split()
         for p in params:
             # Handle emoji
+            # usual format is " :smiley_face: "
             if len(p) > 2 and p[0] == ':' and p[-1] == ':':
                 text.append(p)
                 continue

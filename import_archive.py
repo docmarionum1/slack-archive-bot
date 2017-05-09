@@ -23,10 +23,13 @@ for channel in channels:
 
         args = []
         for message in messages:
-            args.append((
-                message['text'] if 'text' in message else "",
-                message['user'] if 'user' in message else "", channel['id'], message['ts']
-            ))
+            if ('id' in channel and 'ts' in message):
+                args.append((
+                    message['text'] if 'text' in message else "~~There is a message ommitted here~~",
+                    message['user'] if 'user' in message else "", channel['id'], message['ts']
+                ))
+            else:
+                print("In "+file_name+": An exception occured, message not added to archive.")
 
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)', args)
         conn.commit()
