@@ -11,6 +11,8 @@ from websocket import WebSocketConnectionClosedException
 conn = sqlite3.connect('messages.sqlite')
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
+cursor.execute('create table if not exists users (name text, id text, text avatar, UNIQUE(id) ON CONFLICT REPLACE)')
+cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
 
 # This token is given when the bot is started in terminal
 slack_token = os.environ["SLACK_API_TOKEN"]
@@ -35,6 +37,16 @@ def update_users():
     ENV['user_id'] = dict([(m['name'], m['id']) for m in info['members']])
     ENV['id_user'] = dict([(m['id'], m['name']) for m in info['members']])
 
+    args = []
+    for m in info['members']:
+        args.append((
+            m['name'],
+            m['id'],
+            m['profile'].get('image_32', 'https://secure.gravatar.com/avatar/c3a07fba0c4787b0ef1d417838eae9c5.jpg?s=32&d=https%3A%2F%2Ffst.slack-edge.com%2F66f9%2Fimg%2Favatars%2Fava_0024-32.png')
+        ))
+    cursor.executemany("INSERT INTO users(name, id, avatar) VALUES(?,?,?)", args)
+    conn.commit()
+
 def get_user_name(uid):
     if uid not in ENV['id_user']:
         update_users()
@@ -50,6 +62,14 @@ def update_channels():
     info = sc.api_call('channels.list')
     ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['channels']])
     ENV['id_channel'] = dict([(m['id'], m['name']) for m in info['channels']])
+
+    args = []
+    for m in info['channels']:
+        args.append((
+            m['name'],
+            m['id'] ))
+    cursor.executemany("INSERT INTO channels(name, id) VALUES(?,?)", args)
+    conn.commit()
 
 def get_channel_name(uid):
     if uid not in ENV['id_channel']:
@@ -175,6 +195,8 @@ def handle_message(event):
 
 # Loop
 if sc.rtm_connect():
+    update_users()
+    update_channels()
     while True:
         try:
             for event in sc.rtm_read():
