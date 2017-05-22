@@ -8,7 +8,7 @@ from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
 # Connects to the previously created SQL database
-conn = sqlite3.connect('messages.sqlite')
+conn = sqlite3.connect('slack.sqlite')
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists users (name text, id text, text avatar, UNIQUE(id) ON CONFLICT REPLACE)')

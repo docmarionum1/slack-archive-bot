@@ -16,7 +16,7 @@ on the directory.  For example:
 
         python import_archive.py export
 
-    This will create a file `messages.sqlite`.
+    This will create a file `slack.sqlite`.
 1. Create a new [bot user](https://api.slack.com/bot-users) on your slack
 channel and get the API key. Start the bot with:
 
