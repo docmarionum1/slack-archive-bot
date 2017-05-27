@@ -64,7 +64,7 @@ cursor.execute("SELECT * FROM users")
 users = byteify(cursor.fetchall())
 for u in users:
     u['profile'] = {}
-    u['profile']['image_32'] = u.pop('avatar')
+    u['profile']['image_72'] = u.pop('avatar')
 
 # Save channel and user data files to archive folder
 channel_file = os.path.join(arch_dir, 'channels.json')

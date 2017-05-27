@@ -10,7 +10,7 @@ directory = sys.argv[1]
 conn = sqlite3.connect('slack.sqlite')
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
-cursor.execute('create table if not exists users (name text, id text, text avatar, UNIQUE(id) ON CONFLICT REPLACE)')
+cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
 
 print("Importing channels..")
@@ -23,7 +23,7 @@ print("- Channels imported")
 print("Importing users..")
 with open(os.path.join(directory, 'users.json')) as f:
     users = json.load(f)
-args = [(u['name'], u['id'], u['profile']['image_32']) for u in users]
+args = [(u['name'], u['id'], u['profile']['image_72']) for u in users]
 cursor.executemany('INSERT INTO users VALUES(?,?,?)', (args))
 print("- Users imported")
 
