@@ -8,6 +8,7 @@ import os
 import sys
 import sqlite3
 import json
+from six import iteritems
 
 from slackclient import SlackClient
 
@@ -22,10 +23,10 @@ def dict_factory(cursor, row):
 def byteify(input):
     if isinstance(input, dict):
         return {byteify(key): byteify(value)
-                for key, value in input.iteritems()}
+                for key, value in iteritems(input)}
     elif isinstance(input, list):
         return [byteify(element) for element in input]
-    elif isinstance(input, unicode):
+    elif 'unicode' in vars(globals()['__builtins__']) and isinstance(input, unicode):
         return input.encode('utf-8')
     else:
         return input
@@ -118,8 +119,8 @@ for channel_name in channel_msgs.keys():
     if len(channel_msgs[channel_name]) == 0:
         continue
     else:
-	update_count += 1
-        print("%s has been updated") %channel_name
+        update_count += 1
+        print("%s has been updated" % channel_name)
 
     dir = os.path.join(arch_dir, channel_name)
     if "None" in dir:
@@ -134,6 +135,6 @@ for channel_name in channel_msgs.keys():
         with open(file, 'w') as outfile:
             json.dump(channel_msgs[channel_name][day], outfile)
             outfile.close()
-print("Updated %s channels") %(update_count)
+print("Updated %s channels" % update_count)
 
 connection.close()
