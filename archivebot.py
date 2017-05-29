@@ -7,13 +7,22 @@ import traceback
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
-conn = sqlite3.connect('messages.sqlite')
+# Connects to the previously created SQL database
+conn = sqlite3.connect('slack.sqlite')
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
+cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
+cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
 
+# This token is given when the bot is started in terminal
 slack_token = os.environ["SLACK_API_TOKEN"]
+
+# Makes bot user active on Slack
+# NOTE: terminal must be running for the bot to continue
 sc = SlackClient(slack_token)
 
+# Double naming for better search functionality
+# Keys are both the name and unique ID where needed
 ENV = {
     'user_id': {},
     'id_user': {},
@@ -21,10 +30,22 @@ ENV = {
     'id_channel': {}
 }
 
+# Uses slack API to get most recent user list
+# Necessary for User ID correlation
 def update_users():
     info = sc.api_call('users.list')
     ENV['user_id'] = dict([(m['name'], m['id']) for m in info['members']])
     ENV['id_user'] = dict([(m['id'], m['name']) for m in info['members']])
+
+    args = []
+    for m in info['members']:
+        args.append((
+            m['name'],
+            m['id'],
+            m['profile'].get('image_72', 'https://secure.gravatar.com/avatar/c3a07fba0c4787b0ef1d417838eae9c5.jpg?s=32&d=https%3A%2F%2Ffst.slack-edge.com%2F66f9%2Fimg%2Favatars%2Fava_0024-32.png')
+        ))
+    cursor.executemany("INSERT INTO users(name, id, avatar) VALUES(?,?,?)", args)
+    conn.commit()
 
 def get_user_name(uid):
     if uid not in ENV['id_user']:
@@ -41,6 +62,14 @@ def update_channels():
     info = sc.api_call('channels.list')
     ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['channels']])
     ENV['id_channel'] = dict([(m['id'], m['name']) for m in info['channels']])
+
+    args = []
+    for m in info['channels']:
+        args.append((
+            m['name'],
+            m['id'] ))
+    cursor.executemany("INSERT INTO channels(name, id) VALUES(?,?)", args)
+    conn.commit()
 
 def get_channel_name(uid):
     if uid not in ENV['id_channel']:
@@ -79,6 +108,7 @@ def handle_query(event):
             or desc if you want to start from the newest. Default asc.
         limit: The number of responses to return. Default 10.
     """
+
     try:
         text = []
         user = None
@@ -89,6 +119,7 @@ def handle_query(event):
         params = event['text'].lower().split()
         for p in params:
             # Handle emoji
+            # usual format is " :smiley_face: "
             if len(p) > 2 and p[0] == ':' and p[-1] == ':':
                 text.append(p)
                 continue
@@ -156,14 +187,22 @@ def handle_message(event):
     # If it's a DM, treat it as a search query
     if event['channel'][0] == 'D':
         handle_query(event)
+    elif 'user' not in event:
+        print("No valid user. Previous event not saved")
     else: # Otherwise save the message to the archive.
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
             [(event['text'], event['user'], event['channel'], event['ts'])]
         )
         conn.commit()
+        print("--------------------------")
 
 # Loop
 if sc.rtm_connect():
+    update_users()
+    print('Users updated')
+    update_channels()
+    print('Channels updated')
+    print('Archive bot online. Messages will now be recorded...')
     while True:
         try:
             for event in sc.rtm_read():
