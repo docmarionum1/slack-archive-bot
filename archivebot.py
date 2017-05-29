@@ -176,7 +176,7 @@ def handle_query(event):
 def handle_message(event):
     if 'text' not in event:
         return
-    if 'user' in event and event['user'] == 'bot':
+    if 'username' in event and event['username'] == 'bot':
         return
 
     try:
