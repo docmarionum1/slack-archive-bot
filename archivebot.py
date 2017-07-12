@@ -154,7 +154,7 @@ def handle_query(event):
                     except:
                         raise ValueError('%s not a valid number' % p[1])
 
-        query = 'SELECT message,user,timestamp FROM messages WHERE message LIKE "%%%s%%"' % ' '.join(text)
+        query = 'SELECT message,user,timestamp,channel FROM messages WHERE message LIKE "%%%s%%"' % ' '.join(text)
         if user:
             query += ' AND user="%s"' % user
         if channel:
@@ -206,8 +206,9 @@ def format_response(line):
     message = '\n'.join(map(lambda s: '\n> %s' % s, line.split('\n')))  # add > before each line
     username = get_user_name(line[1])
     timestamp = get_timestamp(line[2])
+    channel = line[3]
 
-    return '*<@%s> <!date^%s^{date_short} {time_secs}|date>*\n>%s)' % (username, timestamp, message)
+    return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n>%s)' % (username, channel, timestamp, message)
 
 
 # Loop
