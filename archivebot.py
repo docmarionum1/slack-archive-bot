@@ -15,7 +15,7 @@ cursor.execute('create table if not exists users (name text, id text, avatar tex
 cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
 
 # This token is given when the bot is started in terminal
-slack_token = os.environ["SLACK_API_TOKEN"]
+slack_token = os.environ['SLACK_API_TOKEN']
 
 # Makes bot user active on Slack
 # NOTE: terminal must be running for the bot to continue
@@ -45,7 +45,7 @@ def update_users():
             m['id'],
             m['profile'].get('image_72', 'https://secure.gravatar.com/avatar/c3a07fba0c4787b0ef1d417838eae9c5.jpg?s=32&d=https%3A%2F%2Ffst.slack-edge.com%2F66f9%2Fimg%2Favatars%2Fava_0024-32.png')
         ))
-    cursor.executemany("INSERT INTO users(name, id, avatar) VALUES(?,?,?)", args)
+    cursor.executemany('INSERT INTO users(name, id, avatar) VALUES(?,?,?)', args)
     conn.commit()
 
 
@@ -75,7 +75,7 @@ def update_channels():
         args.append((
             m['name'],
             m['id'] ))
-    cursor.executemany("INSERT INTO channels(name, id) VALUES(?,?)", args)
+    cursor.executemany('INSERT INTO channels(name, id) VALUES(?,?)', args)
     conn.commit()
 
 
@@ -93,7 +93,7 @@ def get_channel_id(name):
 
 def send_message(message, channel):
     sc.api_call(
-      "chat.postMessage",
+      'chat.postMessage',
       channel=channel,
       text=message
     )
@@ -154,7 +154,7 @@ def handle_query(event):
                     except:
                         raise ValueError('%s not a valid number' % p[1])
 
-        query = 'SELECT message,user,timestamp FROM messages WHERE message LIKE "%%%s%%"' % " ".join(text)
+        query = 'SELECT message,user,timestamp FROM messages WHERE message LIKE "%%%s%%"' % ' '.join(text)
         if user:
             query += ' AND user="%s"' % user
         if channel:
@@ -187,19 +187,19 @@ def handle_message(event):
     try:
         print(event)
     except:
-        print("*"*20)
+        print('*' * 20)
 
     # If it's a DM, treat it as a search query
     if event['channel'][0] == 'D':
         handle_query(event)
     elif 'user' not in event:
-        print("No valid user. Previous event not saved")
+        print('No valid user. Previous event not saved')
     else:  # Otherwise save the message to the archive.
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
             [(event['text'], event['user'], event['channel'], event['ts'])]
         )
         conn.commit()
-        print("--------------------------")
+        print('--------------------------')
 
 
 def format_response(line):
@@ -228,4 +228,4 @@ if sc.rtm_connect():
             print(traceback.format_exc())
         time.sleep(1)
 else:
-    print("Connection Failed, invalid token?")
+    print('Connection Failed, invalid token?')
