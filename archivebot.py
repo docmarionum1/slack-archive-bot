@@ -203,12 +203,12 @@ def handle_message(event):
 
 
 def format_response(line):
-    message = '\n'.join(map(lambda s: '\n> %s' % s, line[0].split('\n')))  # add > before each line
+    message = '\n'.join(map(lambda s: '> %s' % s, line[0].split('\n')))  # add > before each line
     username = get_user_name(line[1])
     timestamp = get_timestamp(line[2])
     channel = line[3]
 
-    return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n>%s)' % (username, channel, timestamp, message)
+    return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n%s)' % (username, channel, timestamp, message)
 
 
 # Loop
