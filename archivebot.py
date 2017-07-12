@@ -203,7 +203,7 @@ def handle_message(event):
 
 
 def format_response(line):
-    message = line[0]
+    message = '\n'.join(map(lambda s: '\n> %s' % s, line.split('\n')))  # add > before each line
     username = get_user_name(line[1])
     timestamp = get_timestamp(line[2])
 
