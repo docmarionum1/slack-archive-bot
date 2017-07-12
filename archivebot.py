@@ -30,6 +30,7 @@ ENV = {
     'id_channel': {}
 }
 
+
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation
 def update_users():
@@ -47,15 +48,21 @@ def update_users():
     cursor.executemany("INSERT INTO users(name, id, avatar) VALUES(?,?,?)", args)
     conn.commit()
 
+
 def get_user_name(uid):
     if uid not in ENV['id_user']:
         update_users()
     return ENV['id_user'].get(uid, None)
 
+
 def get_user_id(name):
     if name not in ENV['user_id']:
         update_users()
     return ENV['user_id'].get(name, None)
+
+
+def get_timestamp(ts):
+    return int(ts.split('.')[0])
 
 
 def update_channels():
@@ -71,15 +78,18 @@ def update_channels():
     cursor.executemany("INSERT INTO channels(name, id) VALUES(?,?)", args)
     conn.commit()
 
+
 def get_channel_name(uid):
     if uid not in ENV['id_channel']:
         update_channels()
     return ENV['id_channel'].get(uid, None)
 
+
 def get_channel_id(name):
     if name not in ENV['channel_id']:
         update_channels()
     return ENV['channel_id'].get(name, None)
+
 
 def send_message(message, channel):
     sc.api_call(
@@ -88,10 +98,6 @@ def send_message(message, channel):
       text=message
     )
 
-def convert_timestamp(ts):
-    return datetime.datetime.fromtimestamp(
-        int(ts.split('.')[0])
-    ).strftime('%Y-%m-%d %H:%M:%S')
 
 def handle_query(event):
     """
@@ -130,11 +136,11 @@ def handle_query(event):
                 text.append(p[0])
             if len(p) == 2:
                 if p[0] == 'from':
-                    user = get_user_id(p[1].replace('@','').strip())
+                    user = get_user_id(p[1].replace('@', '').strip())
                     if user is None:
                         raise ValueError('User %s not found' % p[1])
                 if p[0] == 'in':
-                    channel = get_channel_id(p[1].replace('#','').strip())
+                    channel = get_channel_id(p[1].replace('#', '').strip())
                     if channel is None:
                         raise ValueError('Channel %s not found' % p[1])
                 if p[0] == 'sort':
@@ -162,16 +168,15 @@ def handle_query(event):
 
         res = cursor.fetchmany(limit)
         if res:
-            send_message('\n'.join(
-                ['%s (@%s, %s)' % (
-                    i[0], get_user_name(i[1]), convert_timestamp(i[2])
-                ) for i in res]
+            send_message('\n\n'.join(
+                [format_response(line) for line in res]
             ), event['channel'])
         else:
             send_message('No results found', event['channel'])
     except ValueError as e:
         print(traceback.format_exc())
         send_message(str(e), event['channel'])
+
 
 def handle_message(event):
     if 'text' not in event:
@@ -189,12 +194,21 @@ def handle_message(event):
         handle_query(event)
     elif 'user' not in event:
         print("No valid user. Previous event not saved")
-    else: # Otherwise save the message to the archive.
+    else:  # Otherwise save the message to the archive.
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
             [(event['text'], event['user'], event['channel'], event['ts'])]
         )
         conn.commit()
         print("--------------------------")
+
+
+def format_response(line):
+    message = line[0]
+    username = get_user_name(line[1])
+    timestamp = get_timestamp(line[2])
+
+    return '*<@%s> <!date^%s^{date_short} {time_secs}|date>*\n>%s)' % (username, timestamp, message)
+
 
 # Loop
 if sc.rtm_connect():
