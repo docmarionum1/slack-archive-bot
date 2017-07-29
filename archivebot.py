@@ -1,4 +1,3 @@
-import datetime
 import os
 import sqlite3
 import time
@@ -10,7 +9,7 @@ from websocket import WebSocketConnectionClosedException
 # Connects to the previously created SQL database
 conn = sqlite3.connect('slack.sqlite')
 cursor = conn.cursor()
-cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
+cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, thread_timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
 
@@ -154,7 +153,14 @@ def handle_query(event):
                     except:
                         raise ValueError('%s not a valid number' % p[1])
 
-        query = 'SELECT message, user, timestamp, channel FROM messages WHERE message LIKE "%%%s%%"' % ' '.join(text)
+        query = '''
+SELECT messages.*,
+       tm.message AS thread_title
+FROM messages
+INNER JOIN (SELECT timestamp, message, user, channel FROM messages) tm
+    ON (messages.thread_timestamp = tm.timestamp AND
+        messages.channel = tm.channel)
+WHERE messages.message LIKE "%%%s%%"''' % ' '.join(text)
         if user:
             query += ' AND user="%s"' % user
         if channel:
@@ -165,11 +171,13 @@ def handle_query(event):
         print(query)
 
         cursor.execute(query)
+        column_names = [col[0] for col in cursor.description]
 
         res = cursor.fetchmany(limit)
         if res:
             send_message('\n\n'.join(
-                [format_response(line) for line in res]
+                [format_response(**dict(zip(column_names, line)))
+                 for line in res]
             ), event['channel'])
         else:
             send_message('No results found', event['channel'])
@@ -195,20 +203,25 @@ def handle_message(event):
     elif 'user' not in event:
         print('No valid user. Previous event not saved')
     else:  # Otherwise save the message to the archive.
-        cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
-            [(event['text'], event['user'], event['channel'], event['ts'])]
-        )
+        cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?, ?)',
+                           [(event['text'],
+                             event['user'],
+                             event['channel'],
+                             event['ts'],
+                             event.get('thread_ts'))])
         conn.commit()
         print('--------------------------')
 
 
-def format_response(line):
-    message = '\n'.join(map(lambda s: '> %s' % s, line[0].split('\n')))  # add > before each line
-    username = get_user_name(line[1])
-    timestamp = get_timestamp(line[2])
-    channel = line[3]
-
-    return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n%s)' % (username, channel, timestamp, message)
+def format_response(message, user, timestamp, channel, thread_timestamp, thread_title):
+    message = '\n'.join(map(lambda s: '> %s' % s, message.split('\n')))  # add > before each line
+    username = get_user_name(user)
+    timestamp = get_timestamp(timestamp)
+    if thread_timestamp is not None:
+        thread_timestamp = get_timestamp(thread_timestamp)
+        return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>* <!date^%s^{date_short} {time_secs}|date>*\n %s %s)' % (username, channel, timestamp, thread_timestamp, thread_title, message)
+    else:
+        return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n%s)' % (username, channel, timestamp, message)
 
 
 # Loop
