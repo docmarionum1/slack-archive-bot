@@ -9,6 +9,10 @@ from websocket import WebSocketConnectionClosedException
 # Connects to the previously created SQL database
 conn = sqlite3.connect('slack.sqlite')
 cursor = conn.cursor()
+try:
+    cursor.execute('ALTER TABLE messages ADD COLUMN thread_timestamp TEXT')
+except sqlite3.OperationalError:
+    pass  # this is ok. It just means the column already exists.
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, thread_timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
