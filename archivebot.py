@@ -27,6 +27,11 @@ slack_token = os.environ['SLACK_API_TOKEN']
 # NOTE: terminal must be running for the bot to continue
 sc = SlackClient(slack_token)
 
+cursor.execute("SELECT DISTINCT channel FROM messages")
+known_channels = set(record[0] for record in cursor)
+print("{} channels are currently known".format(len(known_channels)))
+
+
 # Double naming for better search functionality
 # Keys are both the name and unique ID where needed
 ENV = {
@@ -164,10 +169,12 @@ def handle_query(event):
 SELECT messages.*,
        tm.message AS thread_title
 FROM messages
-INNER JOIN (SELECT timestamp, message, user, channel FROM messages) tm
+LEFT OUTER JOIN (SELECT timestamp, message, user, channel FROM messages) tm
     ON (messages.thread_timestamp = tm.timestamp AND
         messages.channel = tm.channel)
-WHERE messages.message LIKE "%%%s%%"''' % ' '.join(text)
+WHERE messages.message LIKE "%%%s%%"
+ORDER BY COALESCE(tm.timestamp, messages.timestamp), messages.timestamp
+''' % ' '.join(text)
         if user:
             query += ' AND user="%s"' % user
         if channel:
@@ -205,11 +212,17 @@ def handle_message(event):
         print('*' * 20)
 
     # If it's a DM, treat it as a search query
-    if event['channel'][0] == 'D':
+    channel = event['channel']
+    if channel[0] == 'D':
         handle_query(event)
     elif 'user' not in event:
         print('No valid user. Previous event not saved')
     else:  # Otherwise save the message to the archive.
+        if channel not in known_channels:
+            print("{} is a new channel. Stand by while syncing its history".format(channel))
+            known_channels.add(channel)
+            sync_channel(channel)
+
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?, ?)',
                            [(event['text'],
                              event['user'],
@@ -239,19 +252,25 @@ def update_channel_history():
     cursor.execute("SELECT channel, MAX(timestamp) as latest_timestamp FROM messages")
     channels_map = dict(record for record in cursor)
     for channel_id, latest in channels_map.items():
-        print("Checking channel {}".format(channel_id))
-        has_more = True
-        while has_more:
-            print("Reading channel, as more messages are pending")
-            result = sc.api_call('channels.history',
-                                 channel=channel_id,
-                                 oldest=latest)
-            for message in result['messages']:
-                message['channel'] = channel_id
-                handle_message(message)
-            print("Processed {} messages".format(len(result['messages'])))
-            latest = result.get('latest')
-            has_more = result['has_more']
+        if channel_id is not None:
+            sync_channel(channel_id=channel_id, oldest=latest)
+
+
+def sync_channel(channel_id, **kw):
+    print("Checking channel {}".format(channel_id))
+    has_more = True
+    while has_more:
+        print("Reading channel, as more messages are pending")
+        result = sc.api_call('channels.history',
+                             channel=channel_id,
+                             **kw)
+        from pprint import pprint; pprint(result)
+        for message in result['messages']:
+            message['channel'] = channel_id
+            handle_message(message)
+        print("Processed {} messages".format(len(result['messages'])))
+        oldest = result.get('latest')
+        has_more = result['has_more']
 
 
 # Loop

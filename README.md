@@ -10,13 +10,6 @@ further back than 10,000 messages.
 
         pip install -r requirements.txt
 
-1. [Export your team's slack history.](https://get.slack.help/hc/en-us/articles/201658943-Export-your-team-s-Slack-history)
-Download the archive and export it to a directory. Then run `import_archive.py`
-on the directory.  For example:
-
-        python import_archive.py export
-
-    This will create a file `slack.sqlite`.
 1. Create a new [bot user](https://api.slack.com/bot-users) on your slack
 channel and get the API key. Start the bot with:
 
