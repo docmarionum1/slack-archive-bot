@@ -9,7 +9,8 @@ from websocket import WebSocketConnectionClosedException
 # Connects to the previously created SQL database
 # TODO: lock on slack.sqlite to ensure only one instance is running
 
-conn = sqlite3.connect('slack.sqlite')
+conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'slack.sqlite'))
+
 cursor = conn.cursor()
 try:
     cursor.execute('ALTER TABLE messages ADD COLUMN thread_timestamp TEXT')
