@@ -77,6 +77,19 @@ def get_timestamp(ts):
     return int(ts.split('.')[0])
 
 
+def update_groups(conn):
+    info = sc.api_call('groups.list')
+    ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['groups']])
+    ENV['id_channel'] = dict([(m['id'], m['name']) for m in info['groups']])
+
+    args = []
+    for m in info['groups']:
+        args.append((
+            m['name'],
+            m['id']))
+    conn.executemany('INSERT INTO channels(name, id) VALUES(?,?)', args)
+
+
 def update_channels(conn):
     info = sc.api_call('channels.list')
     ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['channels']])
@@ -86,7 +99,7 @@ def update_channels(conn):
     for m in info['channels']:
         args.append((
             m['name'],
-            m['id'] ))
+            m['id']))
     conn.executemany('INSERT INTO channels(name, id) VALUES(?,?)', args)
 
 
@@ -277,7 +290,7 @@ def sync_channel(conn, channel_id, oldest=None):
                              channel=channel_id,
                              **kw)
         if not result['ok']:
-            raise Exception(result['error'])
+            raise Exception('{}: {}'.format(channel_id, result['error']))
 
         timestamps = set()
         for message in result['messages']:
@@ -298,6 +311,7 @@ if sc.rtm_connect():
         update_users(conn)
         logger.info('Users updated')
         update_channels(conn)
+        update_groups(conn)
         logger.info('Channels updated')
         update_channel_history(conn)
         logger.info('Archive bot online. Messages will now be recorded...')
