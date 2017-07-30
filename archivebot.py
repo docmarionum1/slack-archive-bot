@@ -1,24 +1,26 @@
 import os
-import sqlite3
 import time
-import traceback
+import logging
+import sqlite3
 
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("main")
 
 # Connects to the previously created SQL database
 # TODO: lock on slack.sqlite to ensure only one instance is running
 
 conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'slack.sqlite'))
 
-cursor = conn.cursor()
 try:
-    cursor.execute('ALTER TABLE messages ADD COLUMN thread_timestamp TEXT')
+    conn.execute('ALTER TABLE messages ADD COLUMN thread_timestamp TEXT')
 except sqlite3.OperationalError:
     pass  # this is ok. It just means the column already exists.
-cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, thread_timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
-cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
-cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
+conn.execute('create table if not exists messages (message text, user text, channel text, timestamp text, thread_timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
+conn.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
+conn.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
 
 # This token is given when the bot is started in terminal
 slack_token = os.environ['SLACK_API_TOKEN']
@@ -27,8 +29,7 @@ slack_token = os.environ['SLACK_API_TOKEN']
 # NOTE: terminal must be running for the bot to continue
 sc = SlackClient(slack_token)
 
-cursor.execute("SELECT DISTINCT channel FROM messages")
-known_channels = set(record[0] for record in cursor)
+known_channels = set(record[0] for record in conn.execute("SELECT channel, count(*) FROM messages"))
 
 
 # Double naming for better search functionality
@@ -43,7 +44,7 @@ ENV = {
 
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation
-def update_users():
+def update_users(conn):
     info = sc.api_call('users.list')
     ENV['user_id'] = dict([(m['name'], m['id']) for m in info['members']])
     ENV['id_user'] = dict([(m['id'], m['name']) for m in info['members']])
@@ -55,8 +56,7 @@ def update_users():
             m['id'],
             m['profile'].get('image_72', 'https://secure.gravatar.com/avatar/c3a07fba0c4787b0ef1d417838eae9c5.jpg?s=32&d=https%3A%2F%2Ffst.slack-edge.com%2F66f9%2Fimg%2Favatars%2Fava_0024-32.png')
         ))
-    cursor.executemany('INSERT INTO users(name, id, avatar) VALUES(?,?,?)', args)
-    conn.commit()
+    conn.executemany('INSERT INTO users(name, id, avatar) VALUES(?,?,?)', args)
 
 
 def get_user_name(uid):
@@ -75,7 +75,7 @@ def get_timestamp(ts):
     return int(ts.split('.')[0])
 
 
-def update_channels():
+def update_channels(conn):
     info = sc.api_call('channels.list')
     ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['channels']])
     ENV['id_channel'] = dict([(m['id'], m['name']) for m in info['channels']])
@@ -85,8 +85,7 @@ def update_channels():
         args.append((
             m['name'],
             m['id'] ))
-    cursor.executemany('INSERT INTO channels(name, id) VALUES(?,?)', args)
-    conn.commit()
+    conn.executemany('INSERT INTO channels(name, id) VALUES(?,?)', args)
 
 
 def get_channel_name(uid):
@@ -181,55 +180,53 @@ ORDER BY COALESCE(tm.timestamp, messages.timestamp), messages.timestamp
         if sort:
             query += ' ORDER BY timestamp %s' % sort
 
-        print(query)
+        query += ' LIMIT {}'.format(limit)
+        logger.debug(query)
 
-        cursor.execute(query)
-        column_names = [col[0] for col in cursor.description]
+        res = conn.execute(query)
 
-        res = cursor.fetchmany(limit)
         if res:
             send_message('\n\n'.join(
-                [format_response(**dict(zip(column_names, line)))
+                [format_response(line)
                  for line in res]
             ), event['channel'])
         else:
             send_message('No results found', event['channel'])
     except ValueError as e:
-        print(traceback.format_exc())
+        logger.exception('During query')
         send_message(str(e), event['channel'])
 
 
-def handle_message(event):
+def handle_message(conn, event):
     if 'text' not in event:
         return
     if 'username' in event and event['username'] == 'bot':
         return
 
     try:
-        print(event)
+        logger.debug(event)
     except:
-        print('*' * 20)
+        logger.debug('*' * 20)
 
     # If it's a DM, treat it as a search query
     channel = event['channel']
     if channel[0] == 'D':
         handle_query(event)
     elif 'user' not in event:
-        print('No valid user. Previous event not saved')
+        logger.debug('No valid user. Previous event not saved')
     else:  # Otherwise save the message to the archive.
         if channel not in known_channels:
-            print("{} is a new channel. Stand by while syncing its history".format(channel))
+            logger.debug("{} is a new channel. Stand by while syncing its history".format(channel))
             known_channels.add(channel)
-            sync_channel(channel)
+            sync_channel(channel_id=channel, conn=conn)
 
-        cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?, ?)',
-                           [(event['text'],
-                             event['user'],
-                             event['channel'],
-                             event['ts'],
-                             event.get('thread_ts'))])
-        conn.commit()
-        print('--------------------------')
+        conn.execute('INSERT INTO messages VALUES(?, ?, ?, ?, ?)',
+                     (event['text'],
+                      event['user'],
+                      event['channel'],
+                      event['ts'],
+                      event.get('thread_ts')))
+        logger.debug('--------------------------')
 
 
 def format_response(message, user, timestamp, channel, thread_timestamp, thread_title):
@@ -243,53 +240,73 @@ def format_response(message, user, timestamp, channel, thread_timestamp, thread_
         return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n%s)' % (username, channel, timestamp, message)
 
 
-def update_channel_history():
+def update_channel_history(conn):
     """
     For each channel we have previously received, check if there are any later messages
     which we missed
     """
-    cursor.execute("SELECT channel, MAX(timestamp) as latest_timestamp FROM messages")
-    channels_map = dict(record for record in cursor)
+    channels_map = dict(record for record in conn.execute("SELECT channel, MAX(timestamp) as latest_timestamp FROM messages"))
     for channel_id, latest in channels_map.items():
         if channel_id is not None:
-            sync_channel(channel_id=channel_id, oldest=latest)
+            # FIXME: if channel is archived or deleted,
+            # this will raise an exception - which is OK.
+            # But during development/testing, we'll keep it failing
+            # to catch issues with the sync
+            sync_channel(channel_id=channel_id, oldest=latest, conn=conn)
 
 
-def sync_channel(channel_id, **kw):
-    print("Checking channel {}".format(channel_id))
+def sync_channel(conn, channel_id, oldest=None):
+    """
+    Keeps reading channel history until we have caught up.
+    """
+    latest = None
+    logger.info("Checking channel {}".format(channel_id))
     has_more = True
     total = 0
     while has_more:
-        print("Reading channel, as more messages are pending")
+        kw = dict()
+        if oldest is not None:
+            kw['oldest'] = oldest
+        if latest is not None:
+            kw['latest'] = latest
         result = sc.api_call('channels.history',
                              channel=channel_id,
                              **kw)
+        if not result['ok']:
+            raise Exception(result['error'])
+
+        timestamps = set()
         for message in result['messages']:
             message['channel'] = channel_id
-            handle_message(message)
+            timestamps.add(float(message['ts']))
+            handle_message(conn=conn, event=message)
         total += len(result['messages'])
-        print("Processed {} messages so far".format(total))
-        kw['oldest'] = result.get('latest')
+
+        logger.info("Processed {} messages so far".format(total))
+        if len(timestamps) > 0:
+            latest = min(timestamps)
         has_more = result['has_more']
 
 
 # Loop
 if sc.rtm_connect():
-    update_users()
-    print('Users updated')
-    update_channels()
-    print('Channels updated')
-    update_channel_history()
-    print('Archive bot online. Messages will now be recorded...')
+    with conn:
+        update_users(conn)
+        logger.info('Users updated')
+        update_channels(conn)
+        logger.info('Channels updated')
+        update_channel_history(conn)
+        logger.info('Archive bot online. Messages will now be recorded...')
     while True:
         try:
             for event in sc.rtm_read():
                 if event['type'] == 'message':
-                    handle_message(event)
+                    with conn:
+                        handle_message(conn=conn, event=event)
         except WebSocketConnectionClosedException:
             sc.rtm_connect()
         except:
-            print(traceback.format_exc())
+            logger.exception("In main RTC loop")
         time.sleep(1)
 else:
-    print('Connection Failed, invalid token?')
+    logger.error('Connection Failed, invalid token?')
