@@ -7,6 +7,8 @@ from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
 # Connects to the previously created SQL database
+# TODO: lock on slack.sqlite to ensure only one instance is running
+
 conn = sqlite3.connect('slack.sqlite')
 cursor = conn.cursor()
 try:
@@ -228,12 +230,36 @@ def format_response(message, user, timestamp, channel, thread_timestamp, thread_
         return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n%s)' % (username, channel, timestamp, message)
 
 
+def update_channel_history():
+    """
+    For each channel we have previously received, check if there are any later messages
+    which we missed
+    """
+    cursor.execute("SELECT channel, MAX(timestamp) as latest_timestamp FROM messages")
+    channels_map = dict(record for record in cursor)
+    for channel_id, latest in channels_map.items():
+        print("Checking channel {}".format(channel_id))
+        has_more = True
+        while has_more:
+            print("Reading channel, as more messages are pending")
+            result = sc.api_call('channels.history',
+                                 channel=channel_id,
+                                 oldest=latest)
+            for message in result['messages']:
+                message['channel'] = channel_id
+                handle_message(message)
+            print("Processed {} messages".format(len(result['messages'])))
+            latest = result.get('latest')
+            has_more = result['has_more']
+
+
 # Loop
 if sc.rtm_connect():
     update_users()
     print('Users updated')
     update_channels()
     print('Channels updated')
+    update_channel_history()
     print('Archive bot online. Messages will now be recorded...')
     while True:
         try:
