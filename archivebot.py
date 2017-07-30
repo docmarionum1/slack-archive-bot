@@ -29,7 +29,6 @@ sc = SlackClient(slack_token)
 
 cursor.execute("SELECT DISTINCT channel FROM messages")
 known_channels = set(record[0] for record in cursor)
-print("{} channels are currently known".format(len(known_channels)))
 
 
 # Double naming for better search functionality
@@ -259,17 +258,18 @@ def update_channel_history():
 def sync_channel(channel_id, **kw):
     print("Checking channel {}".format(channel_id))
     has_more = True
+    total = 0
     while has_more:
         print("Reading channel, as more messages are pending")
         result = sc.api_call('channels.history',
                              channel=channel_id,
                              **kw)
-        from pprint import pprint; pprint(result)
         for message in result['messages']:
             message['channel'] = channel_id
             handle_message(message)
-        print("Processed {} messages".format(len(result['messages'])))
-        oldest = result.get('latest')
+        total += len(result['messages'])
+        print("Processed {} messages so far".format(total))
+        kw['oldest'] = result.get('latest')
         has_more = result['has_more']
 
 
