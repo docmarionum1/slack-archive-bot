@@ -246,13 +246,13 @@ def update_channel_history(conn):
     which we missed
     """
     channels_map = dict(record for record in conn.execute("SELECT channel, MAX(timestamp) as latest_timestamp FROM messages"))
-    for channel_id, latest in channels_map.items():
+    for channel_id, last_seen in channels_map.items():
         if channel_id is not None:
             # FIXME: if channel is archived or deleted,
             # this will raise an exception - which is OK.
             # But during development/testing, we'll keep it failing
             # to catch issues with the sync
-            sync_channel(channel_id=channel_id, oldest=latest, conn=conn)
+            sync_channel(channel_id=channel_id, oldest=last_seen, conn=conn)
 
 
 def sync_channel(conn, channel_id, oldest=None):
@@ -263,13 +263,14 @@ def sync_channel(conn, channel_id, oldest=None):
     logger.info("Checking channel {}".format(channel_id))
     has_more = True
     total = 0
+    api_name = 'groups.history' if channel_id.startswith('G') else 'channels.history'
     while has_more:
         kw = dict()
         if oldest is not None:
             kw['oldest'] = oldest
         if latest is not None:
             kw['latest'] = latest
-        result = sc.api_call('channels.history',
+        result = sc.api_call(api_name,
                              channel=channel_id,
                              **kw)
         if not result['ok']:
