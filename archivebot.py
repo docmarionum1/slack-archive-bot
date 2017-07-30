@@ -13,6 +13,8 @@ logger = logging.getLogger("main")
 # TODO: lock on slack.sqlite to ensure only one instance is running
 
 conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'slack.sqlite'))
+conn.row_factory = sqlite3.Row
+
 
 try:
     conn.execute('ALTER TABLE messages ADD COLUMN thread_timestamp TEXT')
@@ -229,15 +231,16 @@ def handle_message(conn, event):
         logger.debug('--------------------------')
 
 
-def format_response(message, user, timestamp, channel, thread_timestamp, thread_title):
-    message = '\n'.join(map(lambda s: '> %s' % s, message.split('\n')))  # add > before each line
-    username = get_user_name(user)
-    timestamp = get_timestamp(timestamp)
-    if thread_timestamp is not None:
-        thread_timestamp = get_timestamp(thread_timestamp)
-        return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>* <!date^%s^{date_short} {time_secs}|date>*\n %s %s)' % (username, channel, timestamp, thread_timestamp, thread_title, message)
+def format_response(line):
+    # message, user, timestamp, channel, thread_timestamp, thread_title):
+    message = '\n'.join(map(lambda s: '> %s' % s, line['message'].split('\n')))  # add > before each line
+    username = get_user_name(line['user'])
+    timestamp = get_timestamp(line['timestamp'])
+    if line['thread_timestamp'] is not None:
+        thread_timestamp = get_timestamp(line['thread_timestamp'])
+        return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>* <!date^%s^{date_short} {time_secs}|date>*\n %s %s)' % (username, line['channel'], timestamp, thread_timestamp, line['thread_title'], message)
     else:
-        return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n%s)' % (username, channel, timestamp, message)
+        return '*<@%s> <#%s> <!date^%s^{date_short} {time_secs}|date>*\n%s)' % (username, line['channel'], timestamp, message)
 
 
 def update_channel_history(conn):
