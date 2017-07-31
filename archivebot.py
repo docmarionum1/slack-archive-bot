@@ -6,7 +6,7 @@ import sqlite3
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
 # Connects to the previously created SQL database
@@ -31,7 +31,7 @@ slack_token = os.environ['SLACK_API_TOKEN']
 # NOTE: terminal must be running for the bot to continue
 sc = SlackClient(slack_token)
 
-known_channels = set(record[0] for record in conn.execute("SELECT channel, count(*) FROM messages"))
+known_channels = set(record[0] for record in conn.execute("SELECT channel, count(*) FROM messages GROUP BY channel"))
 
 
 # Double naming for better search functionality
@@ -40,7 +40,8 @@ ENV = {
     'user_id': {},
     'id_user': {},
     'channel_id': {},
-    'id_channel': {}
+    'id_channel': {},
+    'subscribed_channels': set()
 }
 
 
@@ -59,6 +60,7 @@ def update_users(conn):
             m['profile'].get('image_72', 'https://secure.gravatar.com/avatar/c3a07fba0c4787b0ef1d417838eae9c5.jpg?s=32&d=https%3A%2F%2Ffst.slack-edge.com%2F66f9%2Fimg%2Favatars%2Fava_0024-32.png')
         ))
     conn.executemany('INSERT INTO users(name, id, avatar) VALUES(?,?,?)', args)
+    logger.info('Users updated')
 
 
 def get_user_name(uid):
@@ -78,29 +80,28 @@ def get_timestamp(ts):
 
 
 def update_groups(conn):
-    info = sc.api_call('groups.list')
-    ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['groups']])
-    ENV['id_channel'] = dict([(m['id'], m['name']) for m in info['groups']])
-
-    args = []
+    info = sc.api_call('groups.list', exclude_members=True)
     for m in info['groups']:
-        args.append((
-            m['name'],
-            m['id']))
+        ENV['channel_id'][m['name']] = m['id']
+        ENV['id_channel'][m['id']] = m['name']
+        ENV['subscribed_channels'].add(m['id'])
+    logger.info('Groups updated')
+
+
+def save_channels(conn):
+    args = sorted(ENV['channel_id'].items())
     conn.executemany('INSERT INTO channels(name, id) VALUES(?,?)', args)
+    logger.info('Saved groups and channels')
 
 
 def update_channels(conn):
-    info = sc.api_call('channels.list')
-    ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['channels']])
-    ENV['id_channel'] = dict([(m['id'], m['name']) for m in info['channels']])
-
-    args = []
+    info = sc.api_call('channels.list', exclude_members=True)
     for m in info['channels']:
-        args.append((
-            m['name'],
-            m['id']))
-    conn.executemany('INSERT INTO channels(name, id) VALUES(?,?)', args)
+        ENV['channel_id'][m['name']] = m['id']
+        ENV['id_channel'][m['id']] = m['name']
+        if m['is_member']:
+            ENV['subscribed_channels'].add(m['id'])
+    logger.info('Channels updated')
 
 
 def get_channel_name(uid):
@@ -261,7 +262,7 @@ def update_channel_history(conn):
     For each channel we have previously received, check if there are any later messages
     which we missed
     """
-    channels_map = dict(record for record in conn.execute("SELECT channel, MAX(timestamp) as latest_timestamp FROM messages"))
+    channels_map = dict(record for record in conn.execute("SELECT channel, MAX(timestamp) as latest_timestamp FROM messages GROUP BY channel"))
     for channel_id, last_seen in channels_map.items():
         if channel_id is not None:
             # FIXME: if channel is archived or deleted,
@@ -309,11 +310,10 @@ def sync_channel(conn, channel_id, oldest=None):
 if sc.rtm_connect():
     with conn:
         update_users(conn)
-        logger.info('Users updated')
         update_channels(conn)
         update_groups(conn)
-        logger.info('Channels updated')
         update_channel_history(conn)
+        save_channels(conn)
         logger.info('Archive bot online. Messages will now be recorded...')
     while True:
         try:
