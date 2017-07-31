@@ -1,2 +1,8 @@
+.idea
 export
 **.sqlite
+bin
+lib
+lib64
+pyvenv.cfg
+pip-selfcheck.json

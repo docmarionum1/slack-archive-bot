@@ -1,0 +1,12 @@
+[Unit]
+Description=Slack History Bot
+
+[Service]
+Environment=SLACK_API_TOKEN=
+WorkingDirectory=/opt/slack-archive-bot
+ExecStart=/usr/bin/python archivebot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
