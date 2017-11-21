@@ -27,12 +27,14 @@ ENV = {
     'user_id': {},
     'id_user': {},
     'channel_id': {},
-    'id_channel': {}
+    'id_channel': {},
+    'channel_info': {}
 }
 
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation
 def update_users():
+    print('Updating users')
     info = sc.api_call('users.list')
     ENV['user_id'] = dict([(m['name'], m['id']) for m in info['members']])
     ENV['id_user'] = dict([(m['id'], m['name']) for m in info['members']])
@@ -59,15 +61,23 @@ def get_user_id(name):
 
 
 def update_channels():
-    info = sc.api_call('channels.list')
-    ENV['channel_id'] = dict([(m['name'], m['id']) for m in info['channels']])
-    ENV['id_channel'] = dict([(m['id'], m['name']) for m in info['channels']])
+    print("Updating channels")
+    info = sc.api_call('channels.list')['channels'] + sc.api_call('groups.list')['groups']
+    ENV['channel_id'] = dict([(m['name'], m['id']) for m in info])
+    ENV['id_channel'] = dict([(m['id'], m['name']) for m in info])
 
     args = []
-    for m in info['channels']:
+    for m in info:
+        ENV['channel_info'][m['id']] = {
+            'is_private': ('is_group' in m) or m['is_private'],
+            'members': m['members']
+        }
+
         args.append((
             m['name'],
-            m['id'] ))
+            m['id']
+        ))
+
     cursor.executemany("INSERT INTO channels(name, id) VALUES(?,?)", args)
     conn.commit()
 
@@ -93,6 +103,14 @@ def convert_timestamp(ts):
         int(ts.split('.')[0])
     ).strftime('%Y-%m-%d %H:%M:%S')
 
+def can_query_channel(channel_id, user_id):
+    if channel_id in ENV['id_channel']:
+        return (
+            (not ENV['channel_info'][channel_id]['is_private']) or
+            (user_id in ENV['channel_info'][channel_id]['members'])
+        )
+
+
 def handle_query(event):
     """
     Handles a DM to the bot that is requesting a search of the archives.
@@ -108,7 +126,6 @@ def handle_query(event):
             or desc if you want to start from the newest. Default asc.
         limit: The number of responses to return. Default 10.
     """
-
     try:
         text = []
         user = None
@@ -148,7 +165,7 @@ def handle_query(event):
                     except:
                         raise ValueError('%s not a valid number' % p[1])
 
-        query = 'SELECT message,user,timestamp FROM messages WHERE message LIKE "%%%s%%"' % " ".join(text)
+        query = 'SELECT message,user,timestamp,channel FROM messages WHERE message LIKE "%%%s%%"' % " ".join(text)
         if user:
             query += ' AND user="%s"' % user
         if channel:
@@ -162,10 +179,11 @@ def handle_query(event):
 
         res = cursor.fetchmany(limit)
         if res:
+            print(res)
             send_message('\n'.join(
-                ['%s (@%s, %s)' % (
-                    i[0], get_user_name(i[1]), convert_timestamp(i[2])
-                ) for i in res]
+                ['%s (@%s, %s, %s)' % (
+                    i[0], get_user_name(i[1]), convert_timestamp(i[2]), '#'+get_channel_name(i[3])
+                ) for i in res if can_query_channel(i[3], event['user'])]
             ), event['channel'])
         else:
             send_message('No results found', event['channel'])
@@ -199,15 +217,17 @@ def handle_message(event):
 # Loop
 if sc.rtm_connect():
     update_users()
-    print('Users updated')
     update_channels()
-    print('Channels updated')
     print('Archive bot online. Messages will now be recorded...')
     while True:
         try:
             for event in sc.rtm_read():
                 if event['type'] == 'message':
                     handle_message(event)
+                    if 'subtype' in event and event['subtype'] in ['group_leave']:
+                        update_channels()
+                elif event['type'] in ['group_joined', 'member_joined_channel', 'channel_created', 'group_left']:
+                    update_channels()
         except WebSocketConnectionClosedException:
             sc.rtm_connect()
         except:
