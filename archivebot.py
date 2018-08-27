@@ -215,7 +215,7 @@ def handle_message(event):
         print("--------------------------")
 
 # Loop
-if sc.rtm_connect(auto-reconnect=True):
+if sc.rtm_connect(auto_reconnect=True):
     update_users()
     update_channels()
     print('Archive bot online. Messages will now be recorded...')
