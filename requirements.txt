@@ -1,2 +1,2 @@
 six>=1.10.0
-slackclient>=1.0.4
+slackclient>=1.2.0

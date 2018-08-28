@@ -215,11 +215,11 @@ def handle_message(event):
         print("--------------------------")
 
 # Loop
-if sc.rtm_connect():
+if sc.rtm_connect(auto_reconnect=True):
     update_users()
     update_channels()
     print('Archive bot online. Messages will now be recorded...')
-    while True:
+    while sc.server.connected is True:
         try:
             for event in sc.rtm_read():
                 if event['type'] == 'message':
@@ -234,4 +234,4 @@ if sc.rtm_connect():
             print(traceback.format_exc())
         time.sleep(1)
 else:
-    print("Connection Failed, invalid token?")
+    print(datetime.datetime.now() + "Connection Failed, invalid token?")
