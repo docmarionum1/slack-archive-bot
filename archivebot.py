@@ -62,19 +62,19 @@ def get_user_id(name):
 
 def update_channels():
     print("Updating channels")
-    info = sc.api_call('channels.list')['channels'] + sc.api_call('groups.list')['groups']
-    ENV['channel_id'] = dict([(m['name'], m['id']) for m in info])
-    ENV['id_channel'] = dict([(m['id'], m['name']) for m in info])
+    info = sc.api_call('channels.list')['channels'] + sc.api_call('groups.list')['groups'] + sc.api_call('im.list')['ims']
+    ENV['channel_id'] = dict([(m['name'] if 'name' in m else 'user', m['id']) for m in info])
+    ENV['id_channel'] = dict([(m['id'], m['name'] if 'name' in m else 'user') for m in info])
 
     args = []
     for m in info:
         ENV['channel_info'][m['id']] = {
-            'is_private': ('is_group' in m) or m['is_private'],
-            'members': m['members']
+            'is_private': ('is_group' in m) or ('is_im' in m) or m['is_private'],
+            'members': m['members'] if 'members' in m else [m['user']]
         }
 
         args.append((
-            m['name'],
+            m['name'] if 'name' in m else 'user',
             m['id']
         ))
 
@@ -126,6 +126,7 @@ def handle_query(event):
             or desc if you want to start from the newest. Default asc.
         limit: The number of responses to return. Default 10.
     """
+    print(ENV['channel_info'][event['channel']])
     try:
         text = []
         user = None
@@ -203,7 +204,7 @@ def handle_message(event):
         print("*"*20)
 
     # If it's a DM, treat it as a search query
-    if event['channel'][0] == 'D':
+    if event['channel'][0] == 'D' and 'user' in event and ENV['channel_info'][event['channel']]['members'] == [event['user']]:
         handle_query(event)
     elif 'user' not in event:
         print("No valid user. Previous event not saved")
