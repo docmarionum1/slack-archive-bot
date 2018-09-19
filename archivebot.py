@@ -183,13 +183,16 @@ def handle_query(event):
         cursor.execute(query,query_args)
 
         res = cursor.fetchmany(limit)
+        res_message=None
         if res:
             print(res)
-            send_message('\n'.join(
+            res_message = '\n'.join(
                 ['%s (@%s, %s, %s)' % (
                     i[0], get_user_name(i[1]), convert_timestamp(i[2]), '#'+get_channel_name(i[3])
                 ) for i in res if can_query_channel(i[3], event['user'])]
-            ), event['channel'])
+            )
+        if res_message:
+            send_message(res_message, event['channel'])
         else:
             send_message('No results found', event['channel'])
     except ValueError as e:
