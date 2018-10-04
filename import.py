@@ -4,6 +4,9 @@ import os
 import sqlite3
 import sys
 
+import logging
+logger = logging.getLogger(__name__)
+
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('directory', help=(
@@ -20,21 +23,21 @@ cursor.execute('create table if not exists channels (name text, id text, UNIQUE(
 
 directory = args.directory
 
-print("Importing channels..")
+logger.info("Importing channels..")
 with open(os.path.join(directory, 'channels.json')) as f:
     channels = json.load(f)
 args = [(c['name'], c['id']) for c in channels]
 cursor.executemany('INSERT INTO channels VALUES(?,?)', (args))
-print("- Channels imported")
+logger.info("- Channels imported")
 
-print("Importing users..")
+logger.info("Importing users..")
 with open(os.path.join(directory, 'users.json')) as f:
     users = json.load(f)
 args = [(u['name'], u['id'], u['profile']['image_72']) for u in users]
 cursor.executemany('INSERT INTO users VALUES(?,?,?)', (args))
-print("- Users imported")
+logger.info("- Users imported")
 
-print("Importing messages..")
+logger.info("Importing messages..")
 for channel in channels:
     files = glob.glob(os.path.join(directory, channel['name'], '*.json'))
     for file_name in files:
@@ -49,9 +52,9 @@ for channel in channels:
                     message['user'] if 'user' in message else "", channel['id'], message['ts']
                 ))
             else:
-                print("In "+file_name+": An exception occured, message not added to archive.")
+                logger.warn("In "+file_name+": An exception occured, message not added to archive.")
 
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)', args)
         conn.commit()
-print("- Messages imported")
-print("Done")
+logger.info("- Messages imported")
+logger.info("Done")

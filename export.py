@@ -12,6 +12,9 @@ from six import iteritems
 
 from slackclient import SlackClient
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Used in conjunction with sqlite3 to generate JSON-like format
 def dict_factory(cursor, row):
     d = {}
@@ -44,7 +47,7 @@ time = 0.0
 db_path = sys.argv[1]
 arch_dir = sys.argv[2]
 if not os.path.isdir(arch_dir):
-    os.makedirs(arch_dir) 
+    os.makedirs(arch_dir)
     time = 0.0 # Full export instead of day export
 
 # Uncomment if you need to export entire archive or make this choice
@@ -80,7 +83,7 @@ with open(user_file, 'w') as outfile:
 
 # Define the names associated with each channel id
 ENV = {
-    'channel_id': {}, 
+    'channel_id': {},
     'id_channel': {},
 }
 
@@ -120,11 +123,11 @@ for channel_name in channel_msgs.keys():
         continue
     else:
         update_count += 1
-        print("%s has been updated" % channel_name)
+        logger.info("%s has been updated" % channel_name)
 
     dir = os.path.join(arch_dir, channel_name)
     if "None" in dir:
-        print("Channel not found: %s") %message['channel']
+        logger.warn("Channel not found: %s") %message['channel']
         continue
 
     if not os.path.isdir(dir):
@@ -135,6 +138,6 @@ for channel_name in channel_msgs.keys():
         with open(file, 'w') as outfile:
             json.dump(channel_msgs[channel_name][day], outfile)
             outfile.close()
-print("Updated %s channels" % update_count)
+logger.info("Updated %s channels" % update_count)
 
 connection.close()

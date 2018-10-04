@@ -7,6 +7,9 @@ import traceback
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
+import logging
+logger = logging.getLogger(__name__)
+
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
@@ -45,7 +48,7 @@ ENV = {
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation
 def update_users():
-    print('Updating users')
+    logger.info('Updating users')
     info = sc.api_call('users.list')
     ENV['user_id'] = dict([(m['name'], m['id']) for m in info['members']])
     ENV['id_user'] = dict([(m['id'], m['name']) for m in info['members']])
@@ -72,7 +75,7 @@ def get_user_id(name):
 
 
 def update_channels():
-    print("Updating channels")
+    logger.info("Updating channels")
     info = sc.api_call('channels.list')['channels'] + sc.api_call('groups.list')['groups']
     ENV['channel_id'] = dict([(m['name'], m['id']) for m in info])
     ENV['id_channel'] = dict([(m['id'], m['name']) for m in info])
@@ -189,14 +192,14 @@ def handle_query(event):
             query += ' ORDER BY timestamp ?'
             query_args.append(sort)
 
-        print(query,query_args)
+        logger.debug(query,query_args)
 
         cursor.execute(query,query_args)
 
         res = cursor.fetchmany(limit)
         res_message=None
         if res:
-            print(res)
+            logger.debug(res)
             res_message = '\n'.join(
                 ['%s (@%s, %s, %s)' % (
                     i[0], get_user_name(i[1]), convert_timestamp(i[2]), '#'+get_channel_name(i[3])
@@ -207,7 +210,7 @@ def handle_query(event):
         else:
             send_message('No results found', event['channel'])
     except ValueError as e:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         send_message(str(e), event['channel'])
 
 def handle_message(event):
@@ -217,27 +220,30 @@ def handle_message(event):
         return
 
     try:
-        print(event)
+        logger.debug(event)
     except:
-        print("*"*20)
+        # [jasonandersonatuchicago]
+        # 2018-10-04: Under what circumstance can this even happen?
+        logger.debug("*"*20)
 
     # If it's a DM, treat it as a search query
     if event['channel'][0] == 'D':
         handle_query(event)
     elif 'user' not in event:
-        print("No valid user. Previous event not saved")
+        logger.warn("No valid user. Previous event not saved")
     else: # Otherwise save the message to the archive.
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
             [(event['text'], event['user'], event['channel'], event['ts'])]
         )
         conn.commit()
-        print("--------------------------")
+
+    logger.debug("--------------------------")
 
 # Loop
 if sc.rtm_connect(auto_reconnect=True):
     update_users()
     update_channels()
-    print('Archive bot online. Messages will now be recorded...')
+    logger.info('Archive bot online. Messages will now be recorded...')
     while sc.server.connected is True:
         try:
             for event in sc.rtm_read():
@@ -250,7 +256,7 @@ if sc.rtm_connect(auto_reconnect=True):
         except WebSocketConnectionClosedException:
             sc.rtm_connect()
         except:
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
         time.sleep(1)
 else:
-    print(datetime.datetime.now() + "Connection Failed, invalid token?")
+    logger.error('Connection Failed, invalid token?')
