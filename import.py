@@ -4,14 +4,21 @@ import os
 import sqlite3
 import sys
 
-# of slack archive
-directory = sys.argv[1]
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('directory', help=(
+                    'path to the downloaded Slack archive'))
+parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
+                    'path to the SQLite database. (default = ./slack.sqlite)'))
+args = parser.parse_args()
 
-conn = sqlite3.connect('slack.sqlite')
+conn = sqlite3.connect(args.database_path)
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
+
+directory = args.directory
 
 print("Importing channels..")
 with open(os.path.join(directory, 'channels.json')) as f:

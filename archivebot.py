@@ -7,8 +7,16 @@ import traceback
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
+                    'path to the SQLite database. (default = ./slack.sqlite)'))
+args = parser.parse_args()
+
+database_path = args.database_path
+
 # Connects to the previously created SQL database
-conn = sqlite3.connect('slack.sqlite')
+conn = sqlite3.connect(database_path)
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
