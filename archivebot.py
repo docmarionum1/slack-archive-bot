@@ -11,9 +11,12 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
                     'path to the SQLite database. (default = ./slack.sqlite)'))
+parser.add_argument('-b', '--bot-username', default='bot', help=(
+                    'username for the Slack bot user. (default = bot)'))
 args = parser.parse_args()
 
 database_path = args.database_path
+bot_username = args.bot_username
 
 # Connects to the previously created SQL database
 conn = sqlite3.connect(database_path)
@@ -210,7 +213,7 @@ def handle_query(event):
 def handle_message(event):
     if 'text' not in event:
         return
-    if 'username' in event and event['username'] == 'bot':
+    if 'username' in event and event['username'] == bot_username:
         return
 
     try:
