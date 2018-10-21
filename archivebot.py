@@ -1,4 +1,6 @@
+import argparse
 import datetime
+import logging
 import os
 import sqlite3
 import time
@@ -7,8 +9,27 @@ import traceback
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
+                    'path to the SQLite database. (default = ./slack.sqlite)'))
+parser.add_argument('-b', '--bot-username', default='bot', help=(
+                    'username for the Slack bot user. (default = bot)'))
+parser.add_argument('-l', '--log-level', default='debug', help=(
+                    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
+args = parser.parse_args()
+
+log_level = args.log_level.upper()
+assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
+logging.basicConfig(level=getattr(logging, log_level))
+logger = logging.getLogger(__name__)
+
+database_path = args.database_path
+bot_username = args.bot_username
+
 # Connects to the previously created SQL database
-conn = sqlite3.connect('slack.sqlite')
+conn = sqlite3.connect(database_path)
 cursor = conn.cursor()
 cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
 cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
@@ -34,7 +55,7 @@ ENV = {
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation
 def update_users():
-    print('Updating users')
+    logger.info('Updating users')
     info = sc.api_call('users.list')
     ENV['user_id'] = dict([(m['name'], m['id']) for m in info['members']])
     ENV['id_user'] = dict([(m['id'], m['name']) for m in info['members']])
@@ -61,7 +82,7 @@ def get_user_id(name):
 
 
 def update_channels():
-    print("Updating channels")
+    logger.info("Updating channels")
     info = sc.api_call('channels.list')['channels'] + sc.api_call('groups.list')['groups']
     ENV['channel_id'] = dict([(m['name'], m['id']) for m in info])
     ENV['id_channel'] = dict([(m['id'], m['name']) for m in info])
@@ -178,14 +199,14 @@ def handle_query(event):
             query += ' ORDER BY timestamp ?'
             query_args.append(sort)
 
-        print(query,query_args)
+        logger.debug(query,query_args)
 
         cursor.execute(query,query_args)
 
         res = cursor.fetchmany(limit)
         res_message=None
         if res:
-            print(res)
+            logger.debug(res)
             res_message = '\n'.join(
                 ['%s (@%s, %s, %s)' % (
                     i[0], get_user_name(i[1]), convert_timestamp(i[2]), '#'+get_channel_name(i[3])
@@ -196,37 +217,35 @@ def handle_query(event):
         else:
             send_message('No results found', event['channel'])
     except ValueError as e:
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         send_message(str(e), event['channel'])
 
 def handle_message(event):
     if 'text' not in event:
         return
-    if 'username' in event and event['username'] == 'bot':
+    if 'username' in event and event['username'] == bot_username:
         return
 
-    try:
-        print(event)
-    except:
-        print("*"*20)
+    logger.debug(event)
 
     # If it's a DM, treat it as a search query
     if event['channel'][0] == 'D':
         handle_query(event)
     elif 'user' not in event:
-        print("No valid user. Previous event not saved")
+        logger.warn("No valid user. Previous event not saved")
     else: # Otherwise save the message to the archive.
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
             [(event['text'], event['user'], event['channel'], event['ts'])]
         )
         conn.commit()
-        print("--------------------------")
+
+    logger.debug("--------------------------")
 
 # Loop
 if sc.rtm_connect(auto_reconnect=True):
     update_users()
     update_channels()
-    print('Archive bot online. Messages will now be recorded...')
+    logger.info('Archive bot online. Messages will now be recorded...')
     while sc.server.connected is True:
         try:
             for event in sc.rtm_read():
@@ -239,7 +258,7 @@ if sc.rtm_connect(auto_reconnect=True):
         except WebSocketConnectionClosedException:
             sc.rtm_connect()
         except:
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
         time.sleep(1)
 else:
-    print(datetime.datetime.now() + "Connection Failed, invalid token?")
+    logger.error('Connection Failed, invalid token?')
