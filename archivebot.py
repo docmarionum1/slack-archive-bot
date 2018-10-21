@@ -1,4 +1,6 @@
+import argparse
 import datetime
+import logging
 import os
 import sqlite3
 import time
@@ -7,16 +9,21 @@ import traceback
 from slackclient import SlackClient
 from websocket import WebSocketConnectionClosedException
 
-import logging
-logger = logging.getLogger(__name__)
 
-import argparse
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
                     'path to the SQLite database. (default = ./slack.sqlite)'))
 parser.add_argument('-b', '--bot-username', default='bot', help=(
                     'username for the Slack bot user. (default = bot)'))
+parser.add_argument('-l', '--log-level', default='debug', help=(
+                    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
 args = parser.parse_args()
+
+log_level = args.log_level.upper()
+assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
+logging.basicConfig(level=getattr(logging, log_level))
+logger = logging.getLogger(__name__)
 
 database_path = args.database_path
 bot_username = args.bot_username
@@ -219,12 +226,7 @@ def handle_message(event):
     if 'username' in event and event['username'] == bot_username:
         return
 
-    try:
-        logger.debug(event)
-    except:
-        # [jasonandersonatuchicago]
-        # 2018-10-04: Under what circumstance can this even happen?
-        logger.debug("*"*20)
+    logger.debug(event)
 
     # If it's a DM, treat it as a search query
     if event['channel'][0] == 'D':

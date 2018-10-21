@@ -1,19 +1,24 @@
+import argparse
 import glob
 import json
+import logging
 import os
 import sqlite3
 import sys
 
-import logging
-logger = logging.getLogger(__name__)
-
-import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('directory', help=(
                     'path to the downloaded Slack archive'))
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
                     'path to the SQLite database. (default = ./slack.sqlite)'))
+parser.add_argument('-l', '--log-level', default='debug', help=(
+                    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
 args = parser.parse_args()
+
+log_level = args.log_level.upper()
+assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
+logging.basicConfig(level=getattr(logging, log_level))
+logger = logging.getLogger(__name__)
 
 conn = sqlite3.connect(args.database_path)
 cursor = conn.cursor()

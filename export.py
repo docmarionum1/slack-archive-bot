@@ -2,18 +2,21 @@
 # Usage: python export.py <path_to_database> <path_for_new_folder>
 # Output: folder in given directory
 
+import argparse
 import datetime
-import time
-import os
-import sys
-import sqlite3
 import json
+import logging
+import os
+import sqlite3
+import sys
+import time
+
 from six import iteritems
 
 from slackclient import SlackClient
 
-import logging
-logger = logging.getLogger(__name__)
+
+
 
 # Used in conjunction with sqlite3 to generate JSON-like format
 def dict_factory(cursor, row):
@@ -43,11 +46,28 @@ def getDate(ts):
 
 # Uncomment time in the future if running daily (Used to export last days of messages)
 #time = time.time() - 86400 # One full day in seconds
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
+                    'path to the SQLite database. (default = ./slack.sqlite)'))
+parser.add_argument('-a', '--archive_path', default='export', help=(
+                    'path to export to (default ./export)'))
+parser.add_argument('-l', '--log-level', default='debug', help=(
+                    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
+args = parser.parse_args()
+
+database_path = args.database_path
+archive_path = args.archive_path
+
+log_level = args.log_level.upper()
+assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
+logging.basicConfig(level=getattr(logging, log_level))
+logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
 time = 0.0
-db_path = sys.argv[1]
-arch_dir = sys.argv[2]
-if not os.path.isdir(arch_dir):
-    os.makedirs(arch_dir)
+if not os.path.isdir(archive_path):
+    os.makedirs(archive_path)
     time = 0.0 # Full export instead of day export
 
 # Uncomment if you need to export entire archive or make this choice
@@ -57,7 +77,7 @@ if not os.path.isdir(arch_dir):
 
 
 # Establish connection to SQL database
-connection = sqlite3.connect(db_path)
+connection = sqlite3.connect(database_path)
 connection.row_factory = dict_factory
 cursor = connection.cursor()
 
@@ -71,11 +91,11 @@ for u in users:
     u['profile']['image_72'] = u.pop('avatar')
 
 # Save channel and user data files to archive folder
-channel_file = os.path.join(arch_dir, 'channels.json')
+channel_file = os.path.join(archive_path, 'channels.json')
 with open(channel_file, 'w') as outfile:
     json.dump(channels, outfile)
     outfile.close()
-user_file = os.path.join(arch_dir, 'users.json')
+user_file = os.path.join(archive_path, 'users.json')
 with open(user_file, 'w') as outfile:
     json.dump(users, outfile)
     outfile.close()
@@ -125,7 +145,7 @@ for channel_name in channel_msgs.keys():
         update_count += 1
         logger.info("%s has been updated" % channel_name)
 
-    dir = os.path.join(arch_dir, channel_name)
+    dir = os.path.join(archive_path, channel_name)
     if "None" in dir:
         logger.warn("Channel not found: %s") %message['channel']
         continue
