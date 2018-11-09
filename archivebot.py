@@ -14,6 +14,8 @@ from websocket import WebSocketConnectionClosedException
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
                     'path to the SQLite database. (default = ./slack.sqlite)'))
+parser.add_argument('-b', '--bot-username', default='bot', help=(
+                    'username for the Slack bot user. (default = bot)'))
 parser.add_argument('-l', '--log-level', default='debug', help=(
                     'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
 args = parser.parse_args()
@@ -24,6 +26,7 @@ logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
 database_path = args.database_path
+bot_username = args.bot_username
 
 # Connects to the previously created SQL database
 conn = sqlite3.connect(database_path)
@@ -220,7 +223,7 @@ def handle_query(event):
 def handle_message(event):
     if 'text' not in event:
         return
-    if 'subtype' in event and event['subtype'] == 'bot_message':
+    if 'username' in event and event['username'] == bot_username:
         return
 
     logger.debug(event)
