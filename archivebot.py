@@ -196,7 +196,8 @@ def handle_query(event):
             query += ' ORDER BY timestamp ?'
             query_args.append(sort)
 
-        logger.debug(query,query_args)
+        logger.debug(query)
+        logger.debug(query_args)
 
         cursor.execute(query,query_args)
 
