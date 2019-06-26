@@ -14,7 +14,7 @@ further back than 10,000 messages.
 Download the archive and export it to a directory. Then run `import_archive.py`
 on the directory.  For example:
 
-        python import_archive.py export
+        python import.py export
 
     This will create a file `slack.sqlite`.
 1. Create a new [bot user](https://api.slack.com/bot-users) on your slack
