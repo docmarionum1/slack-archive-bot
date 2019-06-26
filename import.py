@@ -46,7 +46,7 @@ logger.info("Importing messages..")
 for channel in channels:
     files = glob.glob(os.path.join(directory, channel['name'], '*.json'))
     for file_name in files:
-        with open(file_name) as f:
+        with open(file_name, encoding='utf8') as f:
             messages = json.load(f)
 
         args = []
