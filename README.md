@@ -31,7 +31,7 @@ is invited to.  To add the bot to your channels:
 
         /invite @ArchiveBot
 
-If @ArchiveBot is the name you gave you bot user.
+If @ArchiveBot is the name you gave your bot user.
 
 ## Searching
 
