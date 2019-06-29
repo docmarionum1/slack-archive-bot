@@ -193,8 +193,8 @@ def handle_query(event):
             query += ' AND channel=(?)'
             query_args.append(channel)
         if sort:
-            query += ' ORDER BY timestamp ?'
-            query_args.append(sort)
+            query += ' ORDER BY timestamp %s' % sort
+            #query_args.append(sort)
 
         logger.debug(query)
         logger.debug(query_args)
