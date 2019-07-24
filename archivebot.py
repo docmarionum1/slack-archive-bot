@@ -206,7 +206,7 @@ def handle_query(event):
         if res:
             logger.debug(res)
             res_message = '\n'.join(
-                ['*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_ <%s|link>\n%s\n\n' % (
+                ['*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n\n' % (
                     i[1], int(float(i[2])), i[3], i[0]
                 ) for i in res if can_query_channel(i[3], event['user'])]
             )
