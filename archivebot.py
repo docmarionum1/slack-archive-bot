@@ -67,11 +67,6 @@ def update_users():
     cursor.executemany("INSERT INTO users(name, id, avatar) VALUES(?,?,?)", args)
     conn.commit()
 
-def get_user_name(uid):
-    if uid not in ENV['id_user']:
-        update_users()
-    return ENV['id_user'].get(uid, None)
-
 def get_user_id(name):
     if name not in ENV['user_id']:
         update_users()
@@ -99,11 +94,6 @@ def update_channels():
     cursor.executemany("INSERT INTO channels(name, id) VALUES(?,?)", args)
     conn.commit()
 
-def get_channel_name(uid):
-    if uid not in ENV['id_channel']:
-        update_channels()
-    return ENV['id_channel'].get(uid, None)
-
 def get_channel_id(name):
     if name not in ENV['channel_id']:
         update_channels()
@@ -115,11 +105,6 @@ def send_message(message, channel):
       channel=channel,
       text=message
     )
-
-def convert_timestamp(ts):
-    return datetime.datetime.fromtimestamp(
-        int(ts.split('.')[0])
-    ).strftime('%Y-%m-%d %H:%M:%S')
 
 def can_query_channel(channel_id, user_id):
     if channel_id in ENV['id_channel']:
