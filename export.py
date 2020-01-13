@@ -8,14 +8,9 @@ import json
 import logging
 import os
 import sqlite3
-import sys
 import time
 
 from six import iteritems
-
-from slackclient import SlackClient
-
-
 
 
 # Used in conjunction with sqlite3 to generate JSON-like format
