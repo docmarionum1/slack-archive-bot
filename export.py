@@ -58,7 +58,6 @@ log_level = args.log_level.upper()
 assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
 logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
-logger = logging.getLogger(__name__)
 
 time = 0.0
 if not os.path.isdir(archive_path):
