@@ -8,14 +8,9 @@ import json
 import logging
 import os
 import sqlite3
-import sys
 import time
 
 from six import iteritems
-
-from slackclient import SlackClient
-
-
 
 
 # Used in conjunction with sqlite3 to generate JSON-like format
@@ -62,7 +57,6 @@ archive_path = args.archive_path
 log_level = args.log_level.upper()
 assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
 logging.basicConfig(level=getattr(logging, log_level))
-logger = logging.getLogger(__name__)
 logger = logging.getLogger(__name__)
 
 time = 0.0

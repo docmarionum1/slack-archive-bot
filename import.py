@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import sqlite3
-import sys
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('directory', help=(
