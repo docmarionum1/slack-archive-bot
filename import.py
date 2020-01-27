@@ -45,6 +45,8 @@ logger.info("- Users imported")
 logger.info("Importing messages..")
 for channel in channels:
     files = glob.glob(os.path.join(directory, channel['name'], '*.json'))
+    if len(files) == 0:
+        logger.warning("No messages found for #%s" % channel['name'])
     for file_name in files:
         with open(file_name, encoding='utf8') as f:
             messages = json.load(f)
