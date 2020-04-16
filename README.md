@@ -17,12 +17,11 @@ on the directory.  For example:
         python import.py export
 
     This will create a file `slack.sqlite`.
-1. Create a new [bot user](https://api.slack.com/bot-users) on your slack
-channel and get the API key. Start the bot with:
+1. Create a new Classic Slack App: https://api.slack.com/rtm#create_a_classic_slack_app and a legacy bot user.
 
         export SLACK_API_TOKEN=<API_TOKEN> && python archivebot.py
 
-    Where API_TOKEN is the token you got when creating the bot user.
+    Where API_TOKEN is the Bot User OAuth Access Token you got.
 
 ## Archiving New Messages
 
