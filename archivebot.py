@@ -30,9 +30,6 @@ def db_connect():
     cursor = conn.cursor()
     return conn, cursor
 
-
-
-
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
@@ -42,24 +39,11 @@ app = App(
 # Save the bot user's user ID
 app._bot_user_id = app.client.auth_test()['user_id']
 
-# Double naming for better search functionality
-# Keys are both the name and unique ID where needed
-ENV = {
-    'user_id': {},
-    'id_user': {},
-    'channel_id': {},
-    'id_channel': {},
-    'channel_info': {}
-}
-
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation
 def update_users(conn, cursor):
     logger.info('Updating users')
     info = app.client.users_list()
-
-    ENV['user_id'] = dict([(m['profile']['display_name'], m['id']) for m in info['members']])
-    ENV['id_user'] = dict([(m['id'], m['profile']['display_name']) for m in info['members']])
 
     args = []
     for m in info['members']:
@@ -71,67 +55,45 @@ def update_users(conn, cursor):
     cursor.executemany("INSERT INTO users(name, id, avatar) VALUES(?,?,?)", args)
     conn.commit()
 
-def get_user_id(name):
-    """
-    Get a user's user_id given their name; Used to resolve from:@X queries.
-    """
-    return ENV['user_id'].get(name, None)
-
-def update_channel(channel_id):
+def get_channel_info(channel_id):
     channel = app.client.conversations_info(channel=channel_id)['channel']
 
-    ENV['channel_id'][channel['name']] = channel['id']
-    ENV['id_channel'][channel['id']] = channel['name']
-
-    # If the channel is private, we need to get the member list
-    if channel['is_private']:
+    # Get a list of members for the channel. This will be used when querying private channels.
+    response = app.client.conversations_members(channel=channel['id'])
+    members = response['members']
+    while response['response_metadata']['next_cursor']:
         response = app.client.conversations_members(channel=channel['id'])
-        members = response['members']
-        while response['response_metadata']['next_cursor']:
-            response = app.client.conversations_members(channel=channel['id'])
-            members += response['members']
-        members = set(members)
-    else:
-        members = set()
+        members += response['members']
 
-    ENV['channel_info'][channel['id']] = {
-        'is_private': channel['is_private'],
-        'members': members
-    }
-
-    return channel['id'], channel['name']
+    return (
+        channel['id'], channel['name'], channel['is_private'],
+        [(channel['id'], m) for m in members]
+    )
 
 def update_channels(conn, cursor):
     logger.info("Updating channels")
     channels = app.client.conversations_list(types='public_channel,private_channel')['channels']
 
-    args = []
+    channel_args = []
+    member_args = []
     for channel in channels:
         # Only add channels that archive bot is a member of
-        if not channel['is_member']:
-            continue
+        #if not channel['is_member']:
+        #    continue
 
-        update_channel(channel['id'])
+        channel_id, channel_name, channel_is_private, members = get_channel_info(channel['id'])
 
-        args.append((
-            channel['name'],
-            channel['id']
+        channel_args.append((
+            channel_name,
+            channel_id,
+            channel_is_private
         ))
 
-    cursor.executemany("INSERT INTO channels(name, id) VALUES(?,?)", args)
+        member_args += members
+
+    cursor.executemany("INSERT INTO channels(name, id, is_private) VALUES(?,?,?)", channel_args)
+    cursor.executemany("INSERT INTO members(channel, user) VALUES(?,?)", member_args)
     conn.commit()
-
-
-def get_channel_id(name):
-    return ENV['channel_id'].get(name, None)
-
-
-def can_query_channel(channel_id, user_id):
-    if channel_id in ENV['id_channel']:
-        return (
-            (not ENV['channel_info'][channel_id]['is_private']) or
-            (user_id in ENV['channel_info'][channel_id]['members'])
-        )
 
 
 def handle_query(event, cursor, say):
@@ -151,8 +113,8 @@ def handle_query(event, cursor, say):
     """
     try:
         text = []
-        user = None
-        channel = None
+        user_name = None
+        channel_name = None
         sort = None
         limit = 10
 
@@ -170,13 +132,9 @@ def handle_query(event, cursor, say):
                 text.append(p[0])
             if len(p) == 2:
                 if p[0] == 'from':
-                    user = get_user_id(p[1].replace('@','').strip())
-                    if user is None:
-                        raise ValueError(f'User {p[1]} not found')
+                    user_name = p[1]
                 if p[0] == 'in':
-                    channel = get_channel_id(p[1].replace('#','').strip())
-                    if channel is None:
-                        raise ValueError(f'Channel {p[1]} not found. Either {p[1]} does not exist or Archive Bot is not a member of {p[1]}.')
+                    channel_name = p[1].replace('#','').strip()
                 if p[0] == 'sort':
                     if p[1] in ['asc', 'desc']:
                         sort = p[1]
@@ -188,22 +146,39 @@ def handle_query(event, cursor, say):
                     except:
                         raise ValueError('%s not a valid number' % p[1])
 
-        query = 'SELECT message,user,timestamp,channel FROM messages WHERE message LIKE (?)'
-        query_args=["%"+" ".join(text)+"%"]
+        query = f'''
+            SELECT DISTINCT
+                messages.message, messages.user, messages.timestamp, messages.channel
+            FROM messages
+            INNER JOIN users ON messages.user = users.id
+            -- Only query channel that archive bot is a part of
+            INNER JOIN (
+                SELECT * FROM channels
+                INNER JOIN members ON
+                    channels.id = members.channel AND
+                    members.user = (?)
+            ) as channels ON messages.channel = channels.id
+            INNER JOIN members ON channels.id = members.channel
+            WHERE
+                -- Only return messages that are in public channels or the user is a member of
+                (channels.is_private <> 1 OR members.user = (?)) AND
+                messages.message LIKE (?)
+        '''
+        query_args=[app._bot_user_id, event['user'], "%"+" ".join(text)+"%"]
 
-        if user:
-            query += ' AND user=(?)'
-            query_args.append(user)
-        if channel:
-            query += ' AND channel=(?)'
-            query_args.append(channel)
+        if user_name:
+            query += ' AND users.name = (?)'
+            query_args.append(user_name)
+        if channel_name:
+            query += ' AND channels.name = (?)'
+            query_args.append(channel_name)
         if sort:
-            query += ' ORDER BY timestamp %s' % sort
+            query += ' ORDER BY messages.timestamp %s' % sort
 
         logger.debug(query)
         logger.debug(query_args)
 
-        cursor.execute(query,query_args)
+        cursor.execute(query, query_args)
 
         res = cursor.fetchmany(limit)
         res_message=None
@@ -212,7 +187,7 @@ def handle_query(event, cursor, say):
             res_message = '\n'.join(
                 ['*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n\n' % (
                     i[1], int(float(i[2])), i[3], i[0]
-                ) for i in res if can_query_channel(i[3], event['user'])]
+                ) for i in res]
             )
         if res_message:
             say(res_message)
@@ -225,35 +200,36 @@ def handle_query(event, cursor, say):
 @app.event('member_joined_channel')
 def handle_join(event):
     #print(event)
-    print(event)
     conn, cursor = db_connect()
 
     # If the user added is archive bot, then add the channel too
     if event['user'] == app._bot_user_id:
-        channel_id, channel_name = update_channel(event['channel'])
-        cursor.execute("INSERT INTO channels(name, id) VALUES(?,?)", (channel_id, channel_name))
-    elif event['channel'] in ENV['id_channel']:
-        ENV['channel_info'][event['channel']]['members'].add(event['user'])
+        channel_id, channel_name, channel_is_private, members = get_channel_info(event['channel'])
+        cursor.execute(
+            "INSERT INTO channels(name, id, is_private) VALUES(?,?,?)",
+            (channel_id, channel_name, channel_is_private)
+        )
+        cursor.executemany("INSERT INTO members(channel, user) VALUES(?,?)", members)
+    else:
+        cursor.execute(
+            "INSERT INTO members(channel, user) VALUES(?,?)",
+            (event['channel'], event['user'])
+        )
 
-    print(ENV)
+    conn.commit()
 
 @app.event('member_left_channel')
 def handle_left(event):
-    if event['channel'] in ENV['channel_info']:
-        ENV['channel_info'][event['channel']]['members'].discard(event['user'])
+    conn, cursor = db_connect()
+    cursor.execute(
+        "DELETE FROM members WHERE channel = ? AND user = ?", (event['channel'], event['user'])
+    )
+    conn.commit()
 
 def handle_rename(event):
     channel = event['channel']
-    channel_id = channel['id']
-    new_channel_name = channel['name']
-    old_channel_name = ENV['id_channel'][channel_id]
-
-    ENV['id_channel'][channel_id] = new_channel_name
-    del ENV['channel_id'][old_channel_name]
-    ENV['channel_id'][new_channel_name] = channel_id
-
     conn, cursor = db_connect()
-    cursor.execute("UPDATE channels SET name = ? WHERE id = ?", (new_channel_name, channel_id))
+    cursor.execute("UPDATE channels SET name = ? WHERE id = ?", (channel['name'], channel['id']))
     conn.commit()
 
 @app.event('channel_rename')
@@ -282,16 +258,10 @@ def handle_channel_name(event):
 
 @app.event('user_change')
 def handle_user_change(event):
-    print("USER CHANGE MY GOD")
-    print(event)
-
+    # print("USER CHANGE MY GOD")
+    # print(event)
     user_id = event['user']['id']
     new_username = event['user']['profile']['display_name']
-    old_username = ENV['id_user'][user_id]
-
-    ENV['id_user'][user_id] = new_username
-    del ENV['user_id'][old_username]
-    ENV['user_id'][new_username] = user_id
 
     conn, cursor = db_connect()
     cursor.execute("UPDATE users SET name = ? WHERE id = ?", (new_username, user_id))
@@ -316,24 +286,66 @@ def handle_message(message, say):
         )
         conn.commit()
 
-        # Ensure that the user exists in the DB/ENV
-        if message['user'] not in ENV['id_user']:
+        # Ensure that the user exists in the DB
+        cursor.execute('SELECT * FROM users WHERE id = ?', (message['user'],))
+        row = cursor.fetchone()
+        if row is None:
             update_users(conn, cursor)
 
     logger.debug("--------------------------")
 
+def migrate_db(conn, cursor):
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            message TEXT,
+            user TEXT,
+            channel TEXT,
+            timestamp TEXT,
+            UNIQUE(channel, timestamp) ON CONFLICT REPLACE
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            name TEXT,
+            id TEXT,
+            avatar TEXT,
+            UNIQUE(id) ON CONFLICT REPLACE
+    )''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS channels (
+            name TEXT,
+            id TEXT,
+            is_private BOOLEAN NOT NULL CHECK (is_private IN (0,1)),
+            UNIQUE(id) ON CONFLICT REPLACE
+    )''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS members (
+            channel TEXT,
+            user TEXT,
+            FOREIGN KEY (channel) REFERENCES channels(id),
+            FOREIGN KEY (user) REFERENCES users(id)
+        )
+    ''')
+    conn.commit()
+
+    # Add `is_private` to channels for dbs that existed in v0.1
+    try:
+        cursor.execute('''
+            ALTER TABLE channels
+            ADD COLUMN is_private BOOLEAN default 1
+            NOT NULL CHECK (is_private IN (0,1))
+        ''')
+        conn.commit()
+    except:
+        pass
+
 if __name__ == '__main__':
     # Initialize the DB if it doesn't exist
     conn, cursor = db_connect()
-    cursor.execute('create table if not exists messages (message text, user text, channel text, timestamp text, UNIQUE(channel, timestamp) ON CONFLICT REPLACE)')
-    cursor.execute('create table if not exists users (name text, id text, avatar text, UNIQUE(id) ON CONFLICT REPLACE)')
-    cursor.execute('create table if not exists channels (name text, id text, UNIQUE(id) ON CONFLICT REPLACE)')
-    conn.commit()
+    migrate_db(conn, cursor)
 
     # Update the users and channels in the DB and in the local memory mapping
-    update_users(conn, cursor)
-    update_channels(conn, cursor)
-    #print(ENV)
+    #update_users(conn, cursor)
+    #update_channels(conn, cursor)
 
-    #1/0
     app.start(port=args.port)
