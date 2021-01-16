@@ -2,12 +2,13 @@ import argparse
 import datetime
 import logging
 import os
-import sqlite3
 import time
 import traceback
 from websocket import WebSocketConnectionClosedException
 
 from slack_bolt import App
+
+from utils import db_connect, migrate_db
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
@@ -23,12 +24,6 @@ logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
 database_path = args.database_path
-
-# Connects to the previously created SQL database
-def db_connect():
-    conn = sqlite3.connect(database_path)
-    cursor = conn.cursor()
-    return conn, cursor
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
@@ -195,7 +190,7 @@ def handle_query(event, cursor, say):
 
 @app.event('member_joined_channel')
 def handle_join(event):
-    conn, cursor = db_connect()
+    conn, cursor = db_connect(database_path)
 
     # If the user added is archive bot, then add the channel too
     if event['user'] == app._bot_user_id:
@@ -215,7 +210,7 @@ def handle_join(event):
 
 @app.event('member_left_channel')
 def handle_left(event):
-    conn, cursor = db_connect()
+    conn, cursor = db_connect(database_path)
     cursor.execute(
         "DELETE FROM members WHERE channel = ? AND user = ?", (event['channel'], event['user'])
     )
@@ -223,7 +218,7 @@ def handle_left(event):
 
 def handle_rename(event):
     channel = event['channel']
-    conn, cursor = db_connect()
+    conn, cursor = db_connect(database_path)
     cursor.execute("UPDATE channels SET name = ? WHERE id = ?", (channel['name'], channel['id']))
     conn.commit()
 
@@ -256,7 +251,7 @@ def handle_user_change(event):
     user_id = event['user']['id']
     new_username = event['user']['profile']['display_name']
 
-    conn, cursor = db_connect()
+    conn, cursor = db_connect(database_path)
     cursor.execute("UPDATE users SET name = ? WHERE id = ?", (new_username, user_id))
     conn.commit()
 
@@ -266,7 +261,7 @@ def handle_message(message, say):
     if 'text' not in message or message['user'] == 'USLACKBOT':
         return
 
-    conn, cursor = db_connect()
+    conn, cursor = db_connect(database_path)
 
     # If it's a DM, treat it as a search query
     if message['channel_type'] == 'im':
@@ -293,61 +288,16 @@ def handle_message(message, say):
 })
 def handle_message_changed(event):
     message = event['message']
-    conn, cursor = db_connect()
+    conn, cursor = db_connect(database_path)
     cursor.execute(
         "UPDATE messages SET message = ? WHERE user = ? AND channel = ? AND timestamp = ?",
         (message['text'], message['user'], event['channel'], message['ts'])
     )
     conn.commit()
 
-def migrate_db(conn, cursor):
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            message TEXT,
-            user TEXT,
-            channel TEXT,
-            timestamp TEXT,
-            UNIQUE(channel, timestamp) ON CONFLICT REPLACE
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            name TEXT,
-            id TEXT,
-            avatar TEXT,
-            UNIQUE(id) ON CONFLICT REPLACE
-    )''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS channels (
-            name TEXT,
-            id TEXT,
-            is_private BOOLEAN NOT NULL CHECK (is_private IN (0,1)),
-            UNIQUE(id) ON CONFLICT REPLACE
-    )''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS members (
-            channel TEXT,
-            user TEXT,
-            FOREIGN KEY (channel) REFERENCES channels(id),
-            FOREIGN KEY (user) REFERENCES users(id)
-        )
-    ''')
-    conn.commit()
-
-    # Add `is_private` to channels for dbs that existed in v0.1
-    try:
-        cursor.execute('''
-            ALTER TABLE channels
-            ADD COLUMN is_private BOOLEAN default 1
-            NOT NULL CHECK (is_private IN (0,1))
-        ''')
-        conn.commit()
-    except:
-        pass
-
 if __name__ == '__main__':
     # Initialize the DB if it doesn't exist
-    conn, cursor = db_connect()
+    conn, cursor = db_connect(database_path)
     migrate_db(conn, cursor)
 
     # Update the users and channels in the DB and in the local memory mapping
