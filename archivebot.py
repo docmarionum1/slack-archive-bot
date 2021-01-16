@@ -77,10 +77,6 @@ def update_channels(conn, cursor):
     channel_args = []
     member_args = []
     for channel in channels:
-        # Only add channels that archive bot is a member of
-        #if not channel['is_member']:
-        #    continue
-
         channel_id, channel_name, channel_is_private, members = get_channel_info(channel['id'])
 
         channel_args.append((
@@ -199,7 +195,6 @@ def handle_query(event, cursor, say):
 
 @app.event('member_joined_channel')
 def handle_join(event):
-    #print(event)
     conn, cursor = db_connect()
 
     # If the user added is archive bot, then add the channel too
@@ -258,8 +253,6 @@ def handle_channel_name(event):
 
 @app.event('user_change')
 def handle_user_change(event):
-    # print("USER CHANGE MY GOD")
-    # print(event)
     user_id = event['user']['id']
     new_username = event['user']['profile']['display_name']
 
@@ -293,6 +286,19 @@ def handle_message(message, say):
             update_users(conn, cursor)
 
     logger.debug("--------------------------")
+
+@app.event({
+    "type": "message",
+    "subtype": "message_changed"
+})
+def handle_message_changed(event):
+    message = event['message']
+    conn, cursor = db_connect()
+    cursor.execute(
+        "UPDATE messages SET message = ? WHERE user = ? AND channel = ? AND timestamp = ?",
+        (message['text'], message['user'], event['channel'], message['ts'])
+    )
+    conn.commit()
 
 def migrate_db(conn, cursor):
     cursor.execute('''
@@ -345,7 +351,7 @@ if __name__ == '__main__':
     migrate_db(conn, cursor)
 
     # Update the users and channels in the DB and in the local memory mapping
-    #update_users(conn, cursor)
-    #update_channels(conn, cursor)
+    update_users(conn, cursor)
+    update_channels(conn, cursor)
 
     app.start(port=args.port)
