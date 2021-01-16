@@ -3,18 +3,17 @@ import glob
 import json
 import logging
 import os
-import sqlite3
 
 from utils import db_connect, migrate_db
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('directory', help=(
-                    'path to the downloaded Slack archive'))
+    'path to the downloaded Slack archive'))
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
-                    'path to the SQLite database. (default = ./slack.sqlite)'))
+    'path to the SQLite database. (default = ./slack.sqlite)'))
 parser.add_argument('-l', '--log-level', default='debug', help=(
-                    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
+    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
 args = parser.parse_args()
 
 log_level = args.log_level.upper()
@@ -44,7 +43,7 @@ logger.info("- Users imported")
 logger.info("Importing messages..")
 for channel in channels:
     files = glob.glob(os.path.join(directory, channel['name'], '*.json'))
-    if len(files) == 0:
+    if not files:
         logger.warning("No messages found for #%s" % channel['name'])
     for file_name in files:
         with open(file_name, encoding='utf8') as f:
@@ -58,7 +57,7 @@ for channel in channels:
                     message['user'] if 'user' in message else "", channel['id'], message['ts']
                 ))
             else:
-                logger.warn("In "+file_name+": An exception occured, message not added to archive.")
+                logger.warning("In "+file_name+": An exception occured, message not added to archive.")
 
         cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)', args)
         conn.commit()

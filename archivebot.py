@@ -1,10 +1,7 @@
 import argparse
-import datetime
 import logging
 import os
-import time
 import traceback
-from websocket import WebSocketConnectionClosedException
 
 from slack_bolt import App
 
@@ -12,18 +9,18 @@ from utils import db_connect, migrate_db
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
-                    'path to the SQLite database. (default = ./slack.sqlite)'))
+    'path to the SQLite database. (default = ./slack.sqlite)'))
 parser.add_argument('-l', '--log-level', default='debug', help=(
-                    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
+    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
 parser.add_argument('-p', '--port', default=3333, help='Port to serve on. (default = 3333)')
-args = parser.parse_args()
+cmd_args = parser.parse_args()
 
-log_level = args.log_level.upper()
+log_level = cmd_args.log_level.upper()
 assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
 logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
-database_path = args.database_path
+database_path = cmd_args.database_path
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
@@ -45,7 +42,9 @@ def update_users(conn, cursor):
         args.append((
             m['profile']['display_name'],
             m['id'],
-            m['profile'].get('image_72', 'https://secure.gravatar.com/avatar/c3a07fba0c4787b0ef1d417838eae9c5.jpg?s=32&d=https%3A%2F%2Ffst.slack-edge.com%2F66f9%2Fimg%2Favatars%2Fava_0024-32.png')
+            m['profile'].get(
+                'image_72', 'http://fst.slack-edge.com/66f9/img/avatars/ava_0024-32.png'
+            )
         ))
     cursor.executemany("INSERT INTO users(name, id, avatar) VALUES(?,?,?)", args)
     conn.commit()
@@ -125,7 +124,7 @@ def handle_query(event, cursor, say):
                 if p[0] == 'from':
                     user_name = p[1]
                 if p[0] == 'in':
-                    channel_name = p[1].replace('#','').strip()
+                    channel_name = p[1].replace('#', '').strip()
                 if p[0] == 'sort':
                     if p[1] in ['asc', 'desc']:
                         sort = p[1]
@@ -155,7 +154,7 @@ def handle_query(event, cursor, say):
                 (channels.is_private <> 1 OR members.user = (?)) AND
                 messages.message LIKE (?)
         '''
-        query_args=[app._bot_user_id, event['user'], "%"+" ".join(text)+"%"]
+        query_args = [app._bot_user_id, event['user'], "%" + " ".join(text) + "%"]
 
         if user_name:
             query += ' AND users.name = (?)'
@@ -172,7 +171,7 @@ def handle_query(event, cursor, say):
         cursor.execute(query, query_args)
 
         res = cursor.fetchmany(limit)
-        res_message=None
+        res_message = None
         if res:
             logger.debug(res)
             res_message = '\n'.join(
@@ -236,14 +235,14 @@ def handle_group_rename(event):
     "type": "message",
     "subtype": "group_name"
 })
-def handle_group_name(event):
+def handle_group_name():
     pass
 
 @app.event({
     "type": "message",
     "subtype": "channel_name"
 })
-def handle_channel_name(event):
+def handle_channel_name():
     pass
 
 @app.event('user_change')
@@ -267,10 +266,11 @@ def handle_message(message, say):
     if message['channel_type'] == 'im':
         handle_query(message, cursor, say)
     elif 'user' not in message:
-        logger.warn("No valid user. Previous event not saved")
+        logger.warning("No valid user. Previous event not saved")
     else: # Otherwise save the message to the archive.
-        cursor.executemany('INSERT INTO messages VALUES(?, ?, ?, ?)',
-            [(message['text'], message['user'], message['channel'], message['ts'])]
+        cursor.execute(
+            'INSERT INTO messages VALUES(?, ?, ?, ?)',
+            (message['text'], message['user'], message['channel'], message['ts'])
         )
         conn.commit()
 
@@ -295,7 +295,7 @@ def handle_message_changed(event):
     )
     conn.commit()
 
-if __name__ == '__main__':
+def main():
     # Initialize the DB if it doesn't exist
     conn, cursor = db_connect(database_path)
     migrate_db(conn, cursor)
@@ -304,4 +304,7 @@ if __name__ == '__main__':
     update_users(conn, cursor)
     update_channels(conn, cursor)
 
-    app.start(port=args.port)
+    app.start(port=cmd_args.port)
+
+if __name__ == '__main__':
+    main()

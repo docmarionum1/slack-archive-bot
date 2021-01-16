@@ -21,21 +21,20 @@ def dict_factory(cursor, row):
     return d
 
 # Turns unicode into text
-def byteify(input):
-    if isinstance(input, dict):
+def byteify(inp):
+    if isinstance(inp, dict):
         return {byteify(key): byteify(value)
-                for key, value in iteritems(input)}
-    elif isinstance(input, list):
-        return [byteify(element) for element in input]
-    elif 'unicode' in vars(globals()['__builtins__']) and isinstance(input, unicode):
-        return input.encode('utf-8')
-    else:
-        return input
+                for key, value in iteritems(inp)}
+    if isinstance(inp, list):
+        return [byteify(element) for element in inp]
+    if 'unicode' in vars(globals()['__builtins__']) and isinstance(inp, unicode):
+        return inp.encode('utf-8')
+    return inp
 
-def get_channel_name(id):
-    return ENV['id_channel'].get(id, 'None')
+def get_channel_name(channel_id):
+    return ENV['id_channel'].get(channel_id, 'None')
 
-def getDate(ts):
+def get_date(ts):
     return datetime.datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d')
 
 
@@ -44,11 +43,11 @@ def getDate(ts):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
-                    'path to the SQLite database. (default = ./slack.sqlite)'))
+    'path to the SQLite database. (default = ./slack.sqlite)'))
 parser.add_argument('-a', '--archive_path', default='export', help=(
-                    'path to export to (default ./export)'))
+    'path to export to (default ./export)'))
 parser.add_argument('-l', '--log-level', default='debug', help=(
-                    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
+    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
 args = parser.parse_args()
 
 database_path = args.database_path
@@ -123,7 +122,7 @@ for message in results:
         continue
 
     # timestamp format is #########.######
-    day = getDate(message['ts'].split('.')[0])
+    day = get_date(message['ts'].split('.')[0])
     if channel_msgs[channel_name].get(day, None):
         channel_msgs[channel_name][day].append(message)
     else:
@@ -133,22 +132,22 @@ for message in results:
 update_count = 0
 for channel_name in channel_msgs.keys():
     # Checks for any messages from today
-    if len(channel_msgs[channel_name]) == 0:
+    if not channel_msgs[channel_name]:
         continue
     else:
         update_count += 1
         logger.info("%s has been updated" % channel_name)
 
-    dir = os.path.join(archive_path, channel_name)
-    if "None" in dir:
-        logger.warn("Channel not found: %s") %message['channel']
+    directory = os.path.join(archive_path, channel_name)
+    if "None" in directory:
+        logger.warning("Channel not found: %s" % channel_name)
         continue
 
-    if not os.path.isdir(dir):
-        os.makedirs(dir)
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
 
     for day in channel_msgs[channel_name].keys():
-        file = os.path.join(dir, "%s.json") % day
+        file = os.path.join(directory, "%s.json") % day
         with open(file, 'w') as outfile:
             json.dump(channel_msgs[channel_name][day], outfile)
             outfile.close()
