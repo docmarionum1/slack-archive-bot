@@ -20,48 +20,62 @@ def dict_factory(cursor, row):
         d[column[0]] = row[index]
     return d
 
+
 # Turns unicode into text
 def byteify(inp):
     if isinstance(inp, dict):
-        return {byteify(key): byteify(value)
-                for key, value in iteritems(inp)}
+        return {byteify(key): byteify(value) for key, value in iteritems(inp)}
     if isinstance(inp, list):
         return [byteify(element) for element in inp]
-    if 'unicode' in vars(globals()['__builtins__']) and isinstance(inp, unicode):
-        return inp.encode('utf-8')
+    if "unicode" in vars(globals()["__builtins__"]) and isinstance(inp, unicode):
+        return inp.encode("utf-8")
     return inp
 
+
 def get_channel_name(channel_id):
-    return ENV['id_channel'].get(channel_id, 'None')
+    return ENV["id_channel"].get(channel_id, "None")
+
 
 def get_date(ts):
-    return datetime.datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d')
+    return datetime.datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d")
 
 
 # Uncomment time in the future if running daily (Used to export last days of messages)
-#time = time.time() - 86400 # One full day in seconds
+# time = time.time() - 86400 # One full day in seconds
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--database-path', default='slack.sqlite', help=(
-    'path to the SQLite database. (default = ./slack.sqlite)'))
-parser.add_argument('-a', '--archive_path', default='export', help=(
-    'path to export to (default ./export)'))
-parser.add_argument('-l', '--log-level', default='debug', help=(
-    'CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)'))
+parser.add_argument(
+    "-d",
+    "--database-path",
+    default="slack.sqlite",
+    help=("path to the SQLite database. (default = ./slack.sqlite)"),
+)
+parser.add_argument(
+    "-a",
+    "--archive_path",
+    default="export",
+    help=("path to export to (default ./export)"),
+)
+parser.add_argument(
+    "-l",
+    "--log-level",
+    default="debug",
+    help=("CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)"),
+)
 args = parser.parse_args()
 
 database_path = args.database_path
 archive_path = args.archive_path
 
 log_level = args.log_level.upper()
-assert log_level in ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
+assert log_level in ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
 time = 0.0
 if not os.path.isdir(archive_path):
     os.makedirs(archive_path)
-    time = 0.0 # Full export instead of day export
+    time = 0.0  # Full export instead of day export
 
 # Uncomment if you need to export entire archive or make this choice
 # getAll = raw_input("Do you want to export all messages instead of last day?(y/N) ").lower()
@@ -80,49 +94,51 @@ channels = byteify(cursor.fetchall())
 cursor.execute("SELECT * FROM users")
 users = byteify(cursor.fetchall())
 for u in users:
-    u['profile'] = {}
-    u['profile']['image_72'] = u.pop('avatar')
+    u["profile"] = {}
+    u["profile"]["image_72"] = u.pop("avatar")
 
 # Save channel and user data files to archive folder
-channel_file = os.path.join(archive_path, 'channels.json')
-with open(channel_file, 'w') as outfile:
+channel_file = os.path.join(archive_path, "channels.json")
+with open(channel_file, "w") as outfile:
     json.dump(channels, outfile)
     outfile.close()
-user_file = os.path.join(archive_path, 'users.json')
-with open(user_file, 'w') as outfile:
+user_file = os.path.join(archive_path, "users.json")
+with open(user_file, "w") as outfile:
     json.dump(users, outfile)
     outfile.close()
 
 
 # Define the names associated with each channel id
 ENV = {
-    'channel_id': {},
-    'id_channel': {},
+    "channel_id": {},
+    "id_channel": {},
 }
 
-ENV['channel_id'] = dict([(m['name'], m['id']) for m in channels])
-ENV['id_channel'] = dict([(m['id'], m['name']) for m in channels])
+ENV["channel_id"] = dict([(m["name"], m["id"]) for m in channels])
+ENV["id_channel"] = dict([(m["id"], m["name"]) for m in channels])
 
 # Get all messages after given time (in seconds since the Epoch)
-command = ("SELECT * FROM messages WHERE timestamp > %s ORDER BY channel, timestamp") % time
+command = (
+    "SELECT * FROM messages WHERE timestamp > %s ORDER BY channel, timestamp"
+) % time
 cursor.execute(command)
 results = byteify(cursor.fetchall())
 
 # Clean and store message results in Slack-ish format
-channel_msgs = dict([(c['name'], {}) for c in channels])
+channel_msgs = dict([(c["name"], {}) for c in channels])
 for message in results:
-    message['text'] = message['message']
-    message['ts'] = message['timestamp']
-    message['type'] = 'message'
-    message.pop('message')
-    message.pop('timestamp')
+    message["text"] = message["message"]
+    message["ts"] = message["timestamp"]
+    message["type"] = "message"
+    message.pop("message")
+    message.pop("timestamp")
 
-    channel_name = get_channel_name(message['channel'])
+    channel_name = get_channel_name(message["channel"])
     if channel_name == "None":
         continue
 
     # timestamp format is #########.######
-    day = get_date(message['ts'].split('.')[0])
+    day = get_date(message["ts"].split(".")[0])
     if channel_msgs[channel_name].get(day, None):
         channel_msgs[channel_name][day].append(message)
     else:
@@ -148,7 +164,7 @@ for channel_name in channel_msgs.keys():
 
     for day in channel_msgs[channel_name].keys():
         file = os.path.join(directory, "%s.json") % day
-        with open(file, 'w') as outfile:
+        with open(file, "w") as outfile:
             json.dump(channel_msgs[channel_name][day], outfile)
             outfile.close()
 logger.info("Updated %s channels" % update_count)
