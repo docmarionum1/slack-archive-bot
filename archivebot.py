@@ -90,13 +90,14 @@ def update_channels(conn, cursor):
     channel_args = []
     member_args = []
     for channel in channels:
-        channel_id, channel_name, channel_is_private, members = get_channel_info(
-            channel["id"]
-        )
+        if channel["is_member"]:
+            channel_id, channel_name, channel_is_private, members = get_channel_info(
+                channel["id"]
+            )
 
-        channel_args.append((channel_name, channel_id, channel_is_private))
+            channel_args.append((channel_name, channel_id, channel_is_private))
 
-        member_args += members
+            member_args += members
 
     cursor.executemany(
         "INSERT INTO channels(name, id, is_private) VALUES(?,?,?)", channel_args
