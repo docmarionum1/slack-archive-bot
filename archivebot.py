@@ -70,7 +70,9 @@ def get_channel_info(channel_id):
     response = app.client.conversations_members(channel=channel["id"])
     members = response["members"]
     while response["response_metadata"]["next_cursor"]:
-        response = app.client.conversations_members(channel=channel["id"])
+        response = app.client.conversations_members(
+            channel=channel["id"], cursor=response["response_metadata"]["next_cursor"]
+        )
         members += response["members"]
 
     return (
