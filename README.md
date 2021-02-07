@@ -45,7 +45,7 @@ Where `SIGNING_SECRET` is the "Signing Secret" from your app's "Basic Informatio
 
 Use `python archivebot.py -h` for a list of all command line options.
 
-6. Go to the app's "Event Subscriptions" page and add the url to where archive bot is being served. The default port is `3333`.
+6. Go to the app's "Event Subscriptions" page and add the url to where archive bot is being served. The default port is `3333`. (i.e. `http://<ip>:3333/slack/events`)
 
 - Then add the following bot events:
 
