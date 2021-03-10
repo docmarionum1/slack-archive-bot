@@ -23,14 +23,19 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--port", default=3333, help="Port to serve on. (default = 3333)"
 )
-cmd_args = parser.parse_args()
+cmd_args, unknown = parser.parse_known_args()
 
-log_level = cmd_args.log_level.upper()
+# Check the environment too
+log_level = os.environ.get("ARCHIVE_BOT_LOG_LEVEL", cmd_args.log_level)
+database_path = os.environ.get("ARCHIVE_BOT_DATABASE_PATH", cmd_args.database_path)
+port = os.environ.get("ARCHIVE_BOT_PORT", cmd_args.port)
+
+# Setup logging
+log_level = log_level.upper()
 assert log_level in ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
-database_path = cmd_args.database_path
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
@@ -326,7 +331,7 @@ def handle_message_changed(event):
     conn.commit()
 
 
-def main():
+def init():
     # Initialize the DB if it doesn't exist
     conn, cursor = db_connect(database_path)
     migrate_db(conn, cursor)
@@ -335,7 +340,12 @@ def main():
     update_users(conn, cursor)
     update_channels(conn, cursor)
 
-    app.start(port=cmd_args.port)
+
+def main():
+    init()
+
+    # Start the development server
+    app.start(port=port)
 
 
 if __name__ == "__main__":
