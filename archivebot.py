@@ -326,7 +326,7 @@ def handle_message_default(message, say):
 
 @app.event({"type": "message", "subtype": "thread_broadcast"})
 def handle_message_thread_broadcast(event, say):
-    handle_message(event["message"], say)
+    handle_message(event, say)
 
 
 @app.event({"type": "message", "subtype": "message_changed"})
