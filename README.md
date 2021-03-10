@@ -1,4 +1,4 @@
-# Slack ArchiveBot
+# slack-archive-bot
 
 A bot that can search your slack message history.  Makes it possible to search
 further back than 10,000 messages.
@@ -36,7 +36,7 @@ on the directory.  For example:
   - `im:history`
   - `users:read`
 
-5. Start archive bot with:
+5. Start slack-archive-bot with:
 
         SLACK_BOT_TOKEN=<BOT_TOKEN> SLACK_SIGNING_SECRET=<SIGNING_SECRET> python archivebot.py
 
@@ -45,7 +45,7 @@ Where `SIGNING_SECRET` is the "Signing Secret" from your app's "Basic Informatio
 
 Use `python archivebot.py -h` for a list of all command line options.
 
-6. Go to the app's "Event Subscriptions" page and add the url to where archive bot is being served. The default port is `3333`. (i.e. `http://<ip>:3333/slack/events`)
+6. Go to the app's "Event Subscriptions" page and add the url to where slack-archive-bot is being served. The default port is `3333`. (i.e. `http://<ip>:3333/slack/events`)
 
 - Then add the following bot events:
 
@@ -57,6 +57,17 @@ Use `python archivebot.py -h` for a list of all command line options.
   - `message.groups` (if you want to archive/search private channels)
   - `message.im`
   - `user_change`
+
+## Deploying Production Server Using WSGI
+
+By default when you run `python archivebot.py` it will launch a development server. But they don't recommend using it in production. The following is an example of using
+Flask and Gunicorn to deploy slack-archive-bot, but it should work equally well with any other WSGI server. 
+
+1. `pip install flask gunicorn`
+2. `SLACK_BOT_TOKEN=<BOT_TOKEN> SLACK_SIGNING_SECRET=<SIGNING_SECRET> gunicorn flask_app:flask_app -c gunicorn_conf.py <other gunicorn args>`
+3. `flask_app.py` provides a thin wrapper around `archivebot.app` using `slack_bolt.adapter.flask.SlackRequestHandler`. There are many other adapters provided by bolt. To use them, simply `from archivebot import app` and wrap `app`.
+4. `gunicorn_conf.py` ensures that the local database is updated when the server is started, but that it's not run for each worker.
+5. You can use `ARCHIVE_BOT_LOG_LEVEL` and `ARCHIVE_BOT_DATABASE_PATH` to configure slack-archive-bot while running it via gunicorn. 
 
 ## Archiving New Messages
 
