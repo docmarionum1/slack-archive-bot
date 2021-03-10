@@ -291,7 +291,6 @@ def handle_user_change(event):
     conn.commit()
 
 
-@app.message("")
 def handle_message(message, say):
     logger.debug(message)
     if "text" not in message or message["user"] == "USLACKBOT":
@@ -318,6 +317,16 @@ def handle_message(message, say):
             update_users(conn, cursor)
 
     logger.debug("--------------------------")
+
+
+@app.message("")
+def handle_message_default(message, say):
+    handle_message(message, say)
+
+
+@app.event({"type": "message", "subtype": "thread_broadcast"})
+def handle_message_thread_broadcast(event, say):
+    handle_message(event["message"], say)
 
 
 @app.event({"type": "message", "subtype": "message_changed"})
