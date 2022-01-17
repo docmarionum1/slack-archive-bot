@@ -201,10 +201,13 @@ def handle_query(event, cursor, say):
         res_message = None
         if res:
             logger.debug(res)
+            permalink = app.client.chat_getPermalink(channel=res[0][3], message_ts=res[0][2])
+            logger.debug(permalink["permalink"])
+
             res_message = "\n".join(
                 [
-                    "*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n\n"
-                    % (i[1], int(float(i[2])), i[3], i[0])
+                    "*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n\n%s\n\n"
+                    % (i[1], int(float(i[2])), i[3], i[0], permalink["permalink"])
                     for i in res
                 ]
             )
