@@ -67,6 +67,7 @@ for channel in channels:
                         message["user"] if "user" in message else "",
                         channel["id"],
                         message["ts"],
+                        ""
                     )
                 )
             else:
@@ -76,7 +77,7 @@ for channel in channels:
                     + ": An exception occured, message not added to archive."
                 )
 
-        cursor.executemany("INSERT INTO messages VALUES(?, ?, ?, ?)", args)
+        cursor.executemany("INSERT INTO messages VALUES(?, ?, ?, ?, ?)", args)
         conn.commit()
 logger.info("- Messages imported")
 logger.info("Done")

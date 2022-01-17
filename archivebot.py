@@ -165,7 +165,7 @@ def handle_query(event, cursor, say):
 
         query = f"""
             SELECT DISTINCT
-                messages.message, messages.user, messages.timestamp, messages.channel
+                messages.message, messages.user, messages.timestamp, messages.channel, messages.permalink
             FROM messages
             INNER JOIN users ON messages.user = users.id
             -- Only query channel that archive bot is a part of
@@ -201,13 +201,13 @@ def handle_query(event, cursor, say):
         res_message = None
         if res:
             logger.debug(res)
-            permalink = app.client.chat_getPermalink(channel=res[0][3], message_ts=res[0][2])
-            logger.debug(permalink["permalink"])
-
+            res = tuple(map(get_permalink_and_save, res))
+            logger.debug("debugging res")
+            logger.debug(res)
             res_message = "\n".join(
                 [
                     "*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n\n%s\n\n"
-                    % (i[1], int(float(i[2])), i[3], i[0], permalink["permalink"])
+                    % (i[1], int(float(i[2])), i[3], i[0], i[4])
                     for i in res
                 ]
             )
@@ -219,6 +219,26 @@ def handle_query(event, cursor, say):
         logger.error(traceback.format_exc())
         say(str(e))
 
+def get_permalink_and_save(res):
+    if (res[4] == ""):
+        logger.debug("Getting Permalink for res: ")
+        logger.debug(res)
+        conn, cursor = db_connect(database_path)
+
+        permalink = app.client.chat_getPermalink(channel=res[3], message_ts=res[2])
+        logger.debug(permalink["permalink"])
+        res = res[:-1]
+        res = res + (permalink["permalink"],)
+
+        cursor.execute(
+                "UPDATE messages SET permalink = ? WHERE user = ? AND channel = ? AND timestamp = ?",
+                (permalink["permalink"], res[1], res[3], res[2]),
+            )
+        conn.commit()
+    else:
+        logger.debug("Permalink already in database, skipping get_permalink_and_save")
+
+    return res
 
 @app.event("member_joined_channel")
 def handle_join(event):
@@ -307,9 +327,11 @@ def handle_message(message, say):
     elif "user" not in message:
         logger.warning("No valid user. Previous event not saved")
     else:  # Otherwise save the message to the archive.
+        permalink = app.client.chat_getPermalink(channel=message["channel"], message_ts=message["ts"])
+        logger.debug(permalink["permalink"])
         cursor.execute(
-            "INSERT INTO messages VALUES(?, ?, ?, ?)",
-            (message["text"], message["user"], message["channel"], message["ts"]),
+            "INSERT INTO messages VALUES(?, ?, ?, ?, ?)",
+            (message["text"], message["user"], message["channel"], message["ts"], permalink["permalink"]),
         )
         conn.commit()
 

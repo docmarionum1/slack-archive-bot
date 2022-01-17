@@ -9,6 +9,7 @@ def migrate_db(conn, cursor):
             user TEXT,
             channel TEXT,
             timestamp TEXT,
+            permalink TEXT,
             UNIQUE(channel, timestamp) ON CONFLICT REPLACE
         )
     """
