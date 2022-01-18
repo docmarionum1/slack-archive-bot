@@ -198,6 +198,7 @@ def handle_query(event, cursor, say):
         cursor.execute(query, query_args)
 
         res = cursor.fetchmany(limit)
+        cursor.close()
         res_message = None
         if res:
             logger.debug(res)
