@@ -207,8 +207,8 @@ def handle_query(event, cursor, say):
             logger.debug(res)
             res_message = "\n".join(
                 [
-                    "*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n\n%s\n\n"
-                    % (i[1], int(float(i[2])), i[3], i[0], i[4])
+                    "*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n_[Permalink](%s)_\n\n"
+                    % (i[1], int(float(i[2])), i[3], quote_message(i[0]), i[4])
                     for i in res
                 ]
             )
@@ -219,6 +219,16 @@ def handle_query(event, cursor, say):
     except ValueError as e:
         logger.error(traceback.format_exc())
         say(str(e))
+
+def quote_message(msg: str) -> str:
+    """
+    Prefixes each line with a '>'.
+
+    In makrdown this symbol denotes a quote, so Slack will render the message
+    wrapped in a blockquote tag.
+    """
+    return '> '.join(msg.splitlines(True))
+
 
 def get_permalink_and_save(res):
     if (res[4] == ""):
