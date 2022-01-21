@@ -220,6 +220,7 @@ def handle_query(event, cursor, say):
         logger.error(traceback.format_exc())
         say(str(e))
 
+
 def quote_message(msg: str) -> str:
     """
     Prefixes each line with a '>'.
@@ -227,11 +228,11 @@ def quote_message(msg: str) -> str:
     In makrdown this symbol denotes a quote, so Slack will render the message
     wrapped in a blockquote tag.
     """
-    return '> '.join(msg.splitlines(True))
+    return "> ".join(msg.splitlines(True))
 
 
 def get_permalink_and_save(res):
-    if (res[4] == ""):
+    if res[4] == "":
         logger.debug("Getting Permalink for res: ")
         logger.debug(res)
         conn, cursor = db_connect(database_path)
@@ -242,14 +243,15 @@ def get_permalink_and_save(res):
         res = res + (permalink["permalink"],)
 
         cursor.execute(
-                "UPDATE messages SET permalink = ? WHERE user = ? AND channel = ? AND timestamp = ?",
-                (permalink["permalink"], res[1], res[3], res[2]),
-            )
+            "UPDATE messages SET permalink = ? WHERE user = ? AND channel = ? AND timestamp = ?",
+            (permalink["permalink"], res[1], res[3], res[2]),
+        )
         conn.commit()
     else:
         logger.debug("Permalink already in database, skipping get_permalink_and_save")
 
     return res
+
 
 @app.event("member_joined_channel")
 def handle_join(event):
@@ -338,11 +340,19 @@ def handle_message(message, say):
     elif "user" not in message:
         logger.warning("No valid user. Previous event not saved")
     else:  # Otherwise save the message to the archive.
-        permalink = app.client.chat_getPermalink(channel=message["channel"], message_ts=message["ts"])
+        permalink = app.client.chat_getPermalink(
+            channel=message["channel"], message_ts=message["ts"]
+        )
         logger.debug(permalink["permalink"])
         cursor.execute(
             "INSERT INTO messages VALUES(?, ?, ?, ?, ?)",
-            (message["text"], message["user"], message["channel"], message["ts"], permalink["permalink"]),
+            (
+                message["text"],
+                message["user"],
+                message["channel"],
+                message["ts"],
+                permalink["permalink"],
+            ),
         )
         conn.commit()
 
