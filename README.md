@@ -63,11 +63,10 @@ Use `python archivebot.py -h` for a list of all command line options.
 By default when you run `python archivebot.py` it will launch a development server. But they don't recommend using it in production. The following is an example of using
 Flask and Gunicorn to deploy slack-archive-bot, but it should work equally well with any other WSGI server. 
 
-1. `pip install flask gunicorn`
-2. `SLACK_BOT_TOKEN=<BOT_TOKEN> SLACK_SIGNING_SECRET=<SIGNING_SECRET> gunicorn flask_app:flask_app -c gunicorn_conf.py <other gunicorn args>`
-3. `flask_app.py` provides a thin wrapper around `archivebot.app` using `slack_bolt.adapter.flask.SlackRequestHandler`. There are many other adapters provided by bolt. To use them, simply `from archivebot import app` and wrap `app`.
-4. `gunicorn_conf.py` ensures that the local database is updated when the server is started, but that it's not run for each worker.
-5. You can use `ARCHIVE_BOT_LOG_LEVEL` and `ARCHIVE_BOT_DATABASE_PATH` to configure slack-archive-bot while running it via gunicorn. 
+1. `SLACK_BOT_TOKEN=<BOT_TOKEN> SLACK_SIGNING_SECRET=<SIGNING_SECRET> gunicorn flask_app:flask_app -c gunicorn_conf.py <other gunicorn args>`
+2. `flask_app.py` provides a thin wrapper around `archivebot.app` using `slack_bolt.adapter.flask.SlackRequestHandler`. There are many other adapters provided by bolt. To use them, simply `from archivebot import app` and wrap `app`.
+3. `gunicorn_conf.py` ensures that the local database is updated when the server is started, but that it's not run for each worker.
+4. You can use `ARCHIVE_BOT_LOG_LEVEL` and `ARCHIVE_BOT_DATABASE_PATH` to configure slack-archive-bot while running it via gunicorn. 
 
 ## Archiving New Messages
 
