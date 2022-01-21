@@ -1,4 +1,3 @@
 Flask==2.0.2
 gunicorn==20.1.0
-six>=1.10.0
 slack-bolt==1.2.1 
