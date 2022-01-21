@@ -12,13 +12,13 @@ parser.add_argument(
     "-d",
     "--database-path",
     default="slack.sqlite",
-    help=("path to the SQLite database. (default = ./slack.sqlite)"),
+    help="path to the SQLite database. (default = ./slack.sqlite)",
 )
 parser.add_argument(
     "-l",
     "--log-level",
     default="debug",
-    help=("CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)"),
+    help="CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)",
 )
 parser.add_argument(
     "-p", "--port", default=3333, help="Port to serve on. (default = 3333)"
@@ -36,7 +36,6 @@ assert log_level in ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
-
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
@@ -45,6 +44,7 @@ app = App(
 
 # Save the bot user's user ID
 app._bot_user_id = app.client.auth_test()["user_id"]
+
 
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation

@@ -58,6 +58,20 @@ Use `python archivebot.py -h` for a list of all command line options.
   - `message.im`
   - `user_change`
 
+## Run with docker
+
+Build the latest docker image with:
+
+```shell
+docker build --build-arg PORT=3333 . -t archivebot:latest
+```
+
+Run the built image using:
+
+```shell
+docker run -e SLACK_BOT_TOKEN=<BOT_TOKEN> -e SLACK_SIGNING_SECRET=<SIGNING_SECRET> -v /local/data/path/:/data/ archivebot:latest
+```
+
 ## Deploying Production Server Using WSGI
 
 By default when you run `python archivebot.py` it will launch a development server. But they don't recommend using it in production. The following is an example of using
