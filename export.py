@@ -10,8 +10,6 @@ import os
 import sqlite3
 import time
 
-from six import iteritems
-
 
 # Used in conjunction with sqlite3 to generate JSON-like format
 def dict_factory(cursor, row):
@@ -24,7 +22,7 @@ def dict_factory(cursor, row):
 # Turns unicode into text
 def byteify(inp):
     if isinstance(inp, dict):
-        return {byteify(key): byteify(value) for key, value in iteritems(inp)}
+        return {byteify(key): byteify(value) for key, value in inp.items()}
     if isinstance(inp, list):
         return [byteify(element) for element in inp]
     if "unicode" in vars(globals()["__builtins__"]) and isinstance(inp, unicode):
