@@ -385,6 +385,14 @@ def handle_message_changed(event):
     )
     conn.commit()
 
+@app.event("channel_created")
+def handle_channel_created(event):
+    channel_id = event["channel"]["id"]
+    channel_is_private = app.client.conversations_info(channel=channel_id)["channel"]["is_private"]
+
+    if channel_is_private is False:
+        logger.debug("Channel id %s is public, joining", channel_id)
+        app.client.conversations_join(channel=channel_id)
 
 def init():
     # Initialize the DB if it doesn't exist
