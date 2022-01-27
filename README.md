@@ -29,6 +29,7 @@ on the directory.  For example:
 - Add the following bot token oauth scopes and install it to your workspace:
 
   - `channels:history`
+  - `channels:join`
   - `channels:read`
   - `chat:write`
   - `groups:history` (if you want to archive/search private channels)
@@ -49,6 +50,7 @@ Use `python archivebot.py -h` for a list of all command line options.
 
 - Then add the following bot events:
 
+  - `channel_created`
   - `channel_rename`
   - `group_rename` (if you want to archive/search private channels)
   - `member_joined_channel`
