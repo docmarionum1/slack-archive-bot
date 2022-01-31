@@ -264,7 +264,7 @@ def handle_join(event):
         )
         cursor.execute(
             "INSERT INTO channels(name, id, is_private) VALUES(?,?,?)",
-            (channel_id, channel_name, channel_is_private),
+            (channel_name, channel_id, channel_is_private),
         )
         cursor.executemany("INSERT INTO members(channel, user) VALUES(?,?)", members)
     else:
