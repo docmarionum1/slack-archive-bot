@@ -12,13 +12,13 @@ parser.add_argument(
     "-d",
     "--database-path",
     default="slack.sqlite",
-    help=("path to the SQLite database. (default = ./slack.sqlite)"),
+    help="path to the SQLite database. (default = ./slack.sqlite)",
 )
 parser.add_argument(
     "-l",
     "--log-level",
     default="debug",
-    help=("CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)"),
+    help="CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)",
 )
 parser.add_argument(
     "-p", "--port", default=3333, help="Port to serve on. (default = 3333)"
@@ -36,7 +36,6 @@ assert log_level in ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
-
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
@@ -45,6 +44,7 @@ app = App(
 
 # Save the bot user's user ID
 app._bot_user_id = app.client.auth_test()["user_id"]
+
 
 # Uses slack API to get most recent user list
 # Necessary for User ID correlation
@@ -198,6 +198,7 @@ def handle_query(event, cursor, say):
         cursor.execute(query, query_args)
 
         res = cursor.fetchmany(limit)
+        cursor.close()
         res_message = None
         if res:
             logger.debug(res)
@@ -206,8 +207,8 @@ def handle_query(event, cursor, say):
             logger.debug(res)
             res_message = "\n".join(
                 [
-                    "*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n\n%s\n\n"
-                    % (i[1], int(float(i[2])), i[3], i[0], i[4])
+                    "*<@%s>* _<!date^%s^{date_pretty} {time}|A while ago>_ _<#%s>_\n%s\n_[Permalink](%s)_\n\n"
+                    % (i[1], int(float(i[2])), i[3], quote_message(i[0]), i[4])
                     for i in res
                 ]
             )
@@ -219,8 +220,19 @@ def handle_query(event, cursor, say):
         logger.error(traceback.format_exc())
         say(str(e))
 
+
+def quote_message(msg: str) -> str:
+    """
+    Prefixes each line with a '>'.
+
+    In makrdown this symbol denotes a quote, so Slack will render the message
+    wrapped in a blockquote tag.
+    """
+    return "> ".join(msg.splitlines(True))
+
+
 def get_permalink_and_save(res):
-    if (res[4] == ""):
+    if res[4] == "":
         logger.debug("Getting Permalink for res: ")
         logger.debug(res)
         conn, cursor = db_connect(database_path)
@@ -231,14 +243,15 @@ def get_permalink_and_save(res):
         res = res + (permalink["permalink"],)
 
         cursor.execute(
-                "UPDATE messages SET permalink = ? WHERE user = ? AND channel = ? AND timestamp = ?",
-                (permalink["permalink"], res[1], res[3], res[2]),
-            )
+            "UPDATE messages SET permalink = ? WHERE user = ? AND channel = ? AND timestamp = ?",
+            (permalink["permalink"], res[1], res[3], res[2]),
+        )
         conn.commit()
     else:
         logger.debug("Permalink already in database, skipping get_permalink_and_save")
 
     return res
+
 
 @app.event("member_joined_channel")
 def handle_join(event):
@@ -251,7 +264,7 @@ def handle_join(event):
         )
         cursor.execute(
             "INSERT INTO channels(name, id, is_private) VALUES(?,?,?)",
-            (channel_id, channel_name, channel_is_private),
+            (channel_name, channel_id, channel_is_private),
         )
         cursor.executemany("INSERT INTO members(channel, user) VALUES(?,?)", members)
     else:
@@ -327,11 +340,19 @@ def handle_message(message, say):
     elif "user" not in message:
         logger.warning("No valid user. Previous event not saved")
     else:  # Otherwise save the message to the archive.
-        permalink = app.client.chat_getPermalink(channel=message["channel"], message_ts=message["ts"])
+        permalink = app.client.chat_getPermalink(
+            channel=message["channel"], message_ts=message["ts"]
+        )
         logger.debug(permalink["permalink"])
         cursor.execute(
             "INSERT INTO messages VALUES(?, ?, ?, ?, ?)",
-            (message["text"], message["user"], message["channel"], message["ts"], permalink["permalink"]),
+            (
+                message["text"],
+                message["user"],
+                message["channel"],
+                message["ts"],
+                permalink["permalink"],
+            ),
         )
         conn.commit()
 
@@ -364,6 +385,14 @@ def handle_message_changed(event):
     )
     conn.commit()
 
+@app.event("channel_created")
+def handle_channel_created(event):
+    channel_id = event["channel"]["id"]
+    channel_is_private = app.client.conversations_info(channel=channel_id)["channel"]["is_private"]
+
+    if channel_is_private is False:
+        logger.debug("Channel id %s is public, joining", channel_id)
+        app.client.conversations_join(channel=channel_id)
 
 def init():
     # Initialize the DB if it doesn't exist

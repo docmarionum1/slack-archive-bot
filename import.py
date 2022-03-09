@@ -8,18 +8,18 @@ from utils import db_connect, migrate_db
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("directory", help=("path to the downloaded Slack archive"))
+parser.add_argument("directory", help="path to the downloaded Slack archive")
 parser.add_argument(
     "-d",
     "--database-path",
     default="slack.sqlite",
-    help=("path to the SQLite database. (default = ./slack.sqlite)"),
+    help="path to the SQLite database. (default = ./slack.sqlite)",
 )
 parser.add_argument(
     "-l",
     "--log-level",
     default="debug",
-    help=("CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)"),
+    help="CRITICAL, ERROR, WARNING, INFO or DEBUG (default = DEBUG)",
 )
 args = parser.parse_args()
 
@@ -37,14 +37,14 @@ logger.info("Importing channels..")
 with open(os.path.join(directory, "channels.json")) as f:
     channels = json.load(f)
 args = [(c["name"], c["id"], 1) for c in channels]
-cursor.executemany("INSERT INTO channels VALUES(?,?,?)", (args))
+cursor.executemany("INSERT INTO channels VALUES(?,?,?)", args)
 logger.info("- Channels imported")
 
 logger.info("Importing users..")
 with open(os.path.join(directory, "users.json")) as f:
     users = json.load(f)
 args = [(u["name"], u["id"], u["profile"]["image_72"]) for u in users]
-cursor.executemany("INSERT INTO users VALUES(?,?,?)", (args))
+cursor.executemany("INSERT INTO users VALUES(?,?,?)", args)
 logger.info("- Users imported")
 
 logger.info("Importing messages..")
@@ -67,7 +67,7 @@ for channel in channels:
                         message["user"] if "user" in message else "",
                         channel["id"],
                         message["ts"],
-                        ""
+                        "",
                     )
                 )
             else:
