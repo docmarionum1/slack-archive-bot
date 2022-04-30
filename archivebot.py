@@ -129,14 +129,15 @@ def handle_query(event, cursor, say):
         limit: The number of responses to return. Default 10.
     """
     try:
-        usage_text= "Usage:\n\n\t<query> from:<user> in:<channel> sort:asc|desc limit:<number>\n\n\tquery: The text to search for.\n\tuser: If you want to limit the search to one user, the username. It doesn't work with space separated nicknames\n\tchannel: If you want to limit the search to one channel, the channel name.\n\tsort: Either asc if you want to search starting with the oldest messages, or desc if you want to start from the newest. Default asc.\n\tlimit: The number of responses to return. Default 10."
+        usage_text= "Usage:\n\n\t<query> from:<user> in:<channel> sort:asc|desc limit:<number>\n\n\tquery: The text to search for.\n\tuser: If you want to limit the search to one user, the username. For space separated nicknames, use double quotes in this way '\"from:name surname\" query' \n\tchannel: If you want to limit the search to one channel, the channel name.\n\tsort: Either asc if you want to search starting with the oldest messages, or desc if you want to start from the newest. Default asc.\n\tlimit: The number of responses to return. Default 10."
         text = []
         user_name = None
         channel_name = None
         sort = None
         limit = 10
 
-        params = event["text"].lower().split()
+        s = event["text"].lower()
+        params = ['{}'.format(s).rstrip().lstrip() for s in s.split('"') if s not in ('', ', ')]
         if len(params) == 1:
             if params[0] == "!help":
                 say(usage_text)
@@ -190,7 +191,7 @@ def handle_query(event, cursor, say):
         query_args = [app._bot_user_id, event["user"], "%" + " ".join(text) + "%"]
 
         if user_name:
-            query += " AND users.name = (?)"
+            query += " AND users.name LIKE (?)"
             query_args.append(user_name)
         if channel_name:
             query += " AND channels.name = (?)"
