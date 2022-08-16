@@ -358,12 +358,12 @@ def init():
 
 
 def main():
+    init()
     # Start the development server
     if cmd_args.socket:
         handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
         handler.start()
     else:
-        init()
         app.start(port=port)
 
 
