@@ -4,6 +4,7 @@ import os
 import traceback
 
 from slack_bolt import App
+from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from utils import db_connect, migrate_db
 
@@ -22,6 +23,12 @@ parser.add_argument(
 )
 parser.add_argument(
     "-p", "--port", default=3333, help="Port to serve on. (default = 3333)"
+)
+parser.add_argument(
+    "-s",
+    "--socket",
+    action="store_true",
+    help=("enable socket mode")
 )
 cmd_args, unknown = parser.parse_known_args()
 
@@ -352,9 +359,12 @@ def init():
 
 def main():
     init()
-
     # Start the development server
-    app.start(port=port)
+    if cmd_args.socket:
+        handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
+        handler.start()
+    else:
+        app.start(port=port)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ further back than 10,000 messages.
 
 1. Permission to install new apps to your Slack workspace.
 2. python3
-3. A publicly accessible URL to serve the bot from. (Slack recommends using [ngrok](https://ngrok.com/) to get around this.)
+3. A publicly accessible URL to serve the bot from. (Slack recommends using [ngrok](https://ngrok.com/) to get around this.) Not needed when using socket mode.
 
 ## Installation
 
@@ -35,6 +35,8 @@ on the directory.  For example:
   - `groups:read` (if you want to archive/search private channels)
   - `im:history`
   - `users:read`
+
+- For socket mode, skip to [socket mode](#socket-mode)
 
 5. Start slack-archive-bot with:
 
@@ -101,6 +103,12 @@ to the query.  The full usage is:
 
 - Follow the installation steps above to create a new slack app with all of the required permissions and event subscriptions.
 - The biggest change in requirements with the new version is the move from the [Real Time Messaging API](https://api.slack.com/rtm) to the [Events API](https://api.slack.com/apis/connections/events-api) which necessitates having a publicly-accessible url that Slack can send events to. If you are unable to serve a public endpoint, you can use [ngrok](https://ngrok.com/).
+
+## Socket mode
+
+To run the bot in socket mode, go to the app's "Socket Mode" page and enable it. Then add the app level token you got to environment variables.
+
+Finally, run the bot with "-s" or "--socket" option.
 
 ## Contributing
 

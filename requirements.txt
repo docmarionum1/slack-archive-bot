@@ -1,2 +1,2 @@
 six>=1.10.0
-slack-bolt==1.2.1 
+slack-bolt==1.14.3 
