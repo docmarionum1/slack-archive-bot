@@ -36,7 +36,9 @@ on the directory.  For example:
   - `im:history`
   - `users:read`
 
-5. Start slack-archive-bot with:
+5. Go to your app's App Home page and enable "Allow users to send Slash commands and messages from the messages tab".
+
+6. Start slack-archive-bot with:
 
         SLACK_BOT_TOKEN=<BOT_TOKEN> SLACK_SIGNING_SECRET=<SIGNING_SECRET> python archivebot.py
 
@@ -45,7 +47,7 @@ Where `SIGNING_SECRET` is the "Signing Secret" from your app's "Basic Informatio
 
 Use `python archivebot.py -h` for a list of all command line options.
 
-6. Go to the app's "Event Subscriptions" page and add the url to where slack-archive-bot is being served. The default port is `3333`. (i.e. `http://<ip>:3333/slack/events`)
+7. Go to the app's "Event Subscriptions" page and add the url to where slack-archive-bot is being served. The default port is `3333`. (i.e. `http://<ip>:3333/slack/events`)
 
 - Then add the following bot events:
 
